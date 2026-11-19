@@ -35,7 +35,7 @@ export default function Demo() {
   }, []);
   async function callNow() {
     try { await api("/demo/call", { method: "POST", body: JSON.stringify({ phone }) }); setNote(`Calling ${phone}… answer your phone!`); }
-    catch (e) { setNote(String(e)); }
+    catch (e) { setNote(`⚠ ${(e as Error).message}`); }
   }
 
   async function resetClock() { await api("/demo/clock/reset", { method: "POST" }); setNote("Clock reset to real time."); }
@@ -49,8 +49,10 @@ export default function Demo() {
 
   async function apply() {
     const workday_id = `WD-${Math.floor(1000 + Math.random() * 9000)}`;
-    const r = await api<{ candidate_id: number }>("/integrations/workday/applicant", { method: "POST", body: JSON.stringify({ ...form, workday_id }) });
-    setPhone(form.phone);
+    let r: { candidate_id: number; phone: string };
+    try { r = await api("/integrations/workday/applicant", { method: "POST", body: JSON.stringify({ ...form, workday_id }) }); }
+    catch (e) { setNote(`⚠ ${(e as Error).message}`); return; }
+    setPhone(r.phone);
     setNote(`Workday applicant ${workday_id} received → candidate #${r.candidate_id}`);
   }
 

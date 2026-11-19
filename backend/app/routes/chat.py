@@ -7,11 +7,16 @@ from sqlmodel import Session, select
 from ..conversation import handle_inbound
 from ..db import get_session
 from ..models import Candidate, Channel, Message
+from ..phones import normalize_us
 
 router = APIRouter(prefix="/api/sim", tags=["simulator"])
 
 
 def _by_phone(s: Session, phone: str) -> Candidate | None:
+    try:
+        phone = normalize_us(phone)
+    except ValueError:
+        return None
     return s.exec(select(Candidate).where(Candidate.phone == phone).order_by(Candidate.created_at.desc())).first()
 
 

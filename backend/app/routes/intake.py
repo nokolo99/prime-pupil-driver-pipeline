@@ -6,12 +6,13 @@ shape here is ours; the real connector would map Workday's fields onto it.
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session
 
 from ..conversation import intake_applicant
 from ..db import get_session
+from ..phones import normalize_us
 
 router = APIRouter(prefix="/api/integrations/workday", tags=["workday (mock)"])
 
@@ -29,5 +30,10 @@ class NewApplicant(BaseModel):
 
 @router.post("/applicant")
 def new_applicant(a: NewApplicant, session: Session = Depends(get_session)):
-    c = intake_applicant(session, **a.model_dump())
-    return {"candidate_id": c.id}
+    data = a.model_dump()
+    try:
+        data["phone"] = normalize_us(a.phone)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    c = intake_applicant(session, **data)
+    return {"candidate_id": c.id, "phone": c.phone}

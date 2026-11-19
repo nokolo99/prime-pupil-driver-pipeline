@@ -75,12 +75,21 @@ def call_now(r: CallReq, s: Session = Depends(get_session)):
     from .. import telephony
     from ..conversation import log_event
     from ..models import Actor, Candidate
-    c = s.exec(select(Candidate).where(Candidate.phone == r.phone).order_by(Candidate.created_at.desc())).first()
+    from ..phones import normalize_us
+    try:
+        phone = normalize_us(r.phone)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    c = s.exec(select(Candidate).where(Candidate.phone == phone).order_by(Candidate.created_at.desc())).first()
     if not c:
         raise HTTPException(404, "No applicant with this phone. Submit a Workday application first.")
     if not telephony.voice_ready():
         raise HTTPException(400, "Voice not configured (Twilio credentials / ngrok).")
-    sid = telephony.place_call(c.phone, c.id, "demo")
+    from twilio.base.exceptions import TwilioRestException
+    try:
+        sid = telephony.place_call(c.phone, c.id, "demo")
+    except TwilioRestException as e:
+        raise HTTPException(400, f"Twilio couldn't place the call: {e.msg}")
     log_event(s, c, "ai_call_placed", Actor.system, reason="demo", call_sid=sid)
     s.commit()
     return {"call_sid": sid}
