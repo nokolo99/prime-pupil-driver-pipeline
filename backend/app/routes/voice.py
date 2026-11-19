@@ -77,7 +77,7 @@ def _relay_twiml(s: Session, c: Candidate, greeting_key: str) -> Response:
     )
     body = (
         '<?xml version="1.0" encoding="UTF-8"?><Response>'
-        '<Connect action="/voice/relay-ended">'
+        f'<Connect action="/voice/relay-ended?candidate_id={c.id}">'
         f'<ConversationRelay url={quoteattr(ws_url)} welcomeGreeting={quoteattr(greeting)} '
         f'transcriptionLanguage="{RELAY_LANGUAGE}" transcriptionProvider="{RELAY_TRANSCRIPTION_PROVIDER}" '
         f'ttsLanguage="{tts_lang}" ttsProvider="{RELAY_TTS_PROVIDER}" voice="{voice}" interruptible="any">'
@@ -116,15 +116,31 @@ async def answer(request: Request, candidate_id: int, reason: str = "follow_up",
 
 
 @router.post("/relay-ended")
-async def relay_ended(request: Request):
-    await _verified_form(request)
+async def relay_ended(request: Request, candidate_id: int, s: Session = Depends(get_session)):
+    """Twilio calls this when the AI conversation ends: log how it ended and how long it lasted."""
+    form = await _verified_form(request)
+    c = s.get(Candidate, candidate_id)
+    if c:
+        log_event(s, c, "call_ended", Actor.system, call_sid=form.get("CallSid"),
+                  status=form.get("SessionStatus"), duration_s=form.get("SessionDuration"),
+                  error=form.get("ErrorMessage"))
+        s.commit()
     vr = VoiceResponse()
     vr.hangup()
     return _xml(str(vr))
 
 
-def _process_turn(candidate_id: int, speech: str, lang: str | None) -> tuple[str, bool, str]:
-    """Run one caller turn through the shared conversation logic. Returns (text, end call?, reply language)."""
+def _discard_replies(ids: list[int]) -> None:
+    """Remove a superseded turn (its partial speech + the reply that was never spoken); the merged turn replaces it."""
+    with Session(engine) as s:
+        for m in s.exec(select(Message).where(Message.id.in_(ids))).all():
+            s.delete(m)
+        s.commit()
+
+
+def _process_turn(candidate_id: int, speech: str, lang: str | None) -> tuple[str, bool, str, list[int]]:
+    """Run one caller turn through the shared conversation logic.
+    Returns (text to speak, end call?, reply language, ids of the messages this turn created)."""
     with Session(engine) as s:
         c = s.get(Candidate, candidate_id)
         low = speech.lower()
@@ -132,18 +148,22 @@ def _process_turn(candidate_id: int, speech: str, lang: str | None) -> tuple[str
             s.add(Message(candidate_id=c.id, direction="in", channel=Channel.voice, sender=Sender.candidate, body=speech))
             text, en = template("voice_later", c.preferred_language)
             _log_spoken(s, c, text, en); s.commit()
-            return text, True, c.preferred_language
+            return text, True, c.preferred_language, []
 
         last_id = s.exec(select(Message.id).where(Message.candidate_id == c.id).order_by(Message.id.desc())).first() or 0
         handle_inbound(s, c, speech, Channel.voice)  # same brain as SMS: code decides, Claude writes
         s.refresh(c)
-        replies = s.exec(select(Message).where(Message.candidate_id == c.id, Message.direction == "out",
-                                               Message.id > last_id).order_by(Message.id)).all()
+        new_msgs = s.exec(select(Message).where(Message.candidate_id == c.id, Message.id > last_id)
+                          .order_by(Message.id)).all()
+        replies = [m for m in new_msgs if m.direction == "out"]
         text = " ".join(m.body for m in replies) or template("voice_no_input", c.preferred_language)[0]
         over = c.stage != Stage.screening or c.status == CandidateStatus.needs_review
         if over:
             text = f"{text} {template('voice_goodbye', c.preferred_language)[0]}"
-        return text, over, c.preferred_language
+        return text, over, c.preferred_language, [m.id for m in new_msgs]
+
+
+MERGE_WAIT_S = 1.0  # after a turn, wait this long for more speech before replying
 
 
 @router.websocket("/relay")
@@ -154,27 +174,65 @@ async def relay(ws: WebSocket, token: str):
         return
     await ws.accept()
     log.info("ConversationRelay connected for candidate %s", candidate_id)
+
+    pending: list[str] = []       # caller speech not yet answered
+    new_speech = asyncio.Event()  # set whenever another turn arrives
+    loop = asyncio.get_running_loop()
+    last_heard = [0.0]
+    done = asyncio.Event()
+
+    async def responder() -> None:
+        """Waits for a quiet moment, then answers everything said since the last reply.
+        If the caller keeps talking while we prepare a reply, that reply is discarded and we
+        answer the combined speech instead (fixes 'answered only the first half')."""
+        while not done.is_set():
+            await new_speech.wait()
+            new_speech.clear()
+            while loop.time() - last_heard[0] < MERGE_WAIT_S:  # debounce: let them finish
+                await asyncio.sleep(0.1)
+            if not pending:
+                continue
+            speech = " ".join(pending)
+            pending.clear()
+            text, end, reply_lang, reply_ids = await asyncio.to_thread(_process_turn, candidate_id, speech, None)
+            if pending:  # they kept talking while we were thinking: drop this reply, answer it all together
+                await asyncio.to_thread(_discard_replies, reply_ids)
+                pending.insert(0, speech)
+                new_speech.set()
+                continue
+            tts_lang = RELAY_VOICES.get(reply_lang, RELAY_VOICES["en"])[0]
+            # lang picks the matching <Language> voice (native Spanish voice for Spanish replies).
+            await ws.send_text(json.dumps({"type": "text", "token": text, "last": True, "lang": tts_lang}))
+            if end:
+                await asyncio.sleep(min(2 + len(text) / 14, 20))  # let the voice finish first
+                await ws.send_text(json.dumps({"type": "end"}))
+                done.set()
+
+    task = asyncio.create_task(responder())
     try:
         while True:
             msg = json.loads(await ws.receive_text())
             kind = msg.get("type")
-            if kind == "setup":
-                continue
             if kind == "prompt" and msg.get("last", True):
                 speech = (msg.get("voicePrompt") or "").strip()
-                if not speech:
-                    continue
-                text, end, reply_lang = await asyncio.to_thread(_process_turn, candidate_id, speech, msg.get("lang"))
-                tts_lang = RELAY_VOICES.get(reply_lang, RELAY_VOICES["en"])[0]
-                # lang picks the matching <Language> voice (native Spanish voice for Spanish replies).
-                await ws.send_text(json.dumps({"type": "text", "token": text, "last": True, "lang": tts_lang}))
-                if end:
-                    # Give the voice time to finish speaking before handing the call back.
-                    await asyncio.sleep(min(2 + len(text) / 14, 20))
-                    await ws.send_text(json.dumps({"type": "end"}))
+                if speech:
+                    pending.append(speech)
+                    last_heard[0] = loop.time()
+                    new_speech.set()
             elif kind == "interrupt":
-                log.info("caller interrupted after %sms", msg.get("durationUntilInterruptMs"))
+                await asyncio.to_thread(_log_interrupt, candidate_id, msg)
             elif kind == "error":
                 log.warning("ConversationRelay error: %s", msg.get("description"))
     except WebSocketDisconnect:
         log.info("ConversationRelay disconnected for candidate %s", candidate_id)
+    finally:
+        done.set()
+        task.cancel()
+
+
+def _log_interrupt(candidate_id: int, msg: dict) -> None:
+    with Session(engine) as s:
+        c = s.get(Candidate, candidate_id)
+        log_event(s, c, "caller_interrupted", Actor.candidate,
+                  after_ms=msg.get("durationUntilInterruptMs"), heard=msg.get("utteranceUntilInterrupt"))
+        s.commit()
