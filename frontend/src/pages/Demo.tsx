@@ -4,7 +4,7 @@ import { api, label, STAGES, type Lookups, type Message } from "../api";
 // Demo control panel: drives the story. Not part of the recruiter product.
 export default function Demo() {
   const [lk, setLk] = useState<Lookups>({ depots: [], recruiters: [] });
-  const [form, setForm] = useState({ first_name: "María", last_name: "González", phone: "+15550001111", depot_id: 1, language: "es", sms_consent: true });
+  const [form, setForm] = useState({ first_name: "Maria", last_name: "Gonzalez", phone: "+15550001111", depot_id: 1, language: "en", sms_consent: true });
   const [phone, setPhone] = useState("+15550001111");
   const [msgs, setMsgs] = useState<Message[]>([]);
   const [text, setText] = useState("");
