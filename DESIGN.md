@@ -413,6 +413,11 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Start on Claude Sonnet 5.5 (model in config); try Opus 5.5 during testing | Cost while iterating; easy switch |
 | 11-19 | New applicants arrive from Workday (mocked "new applicant" event), not our own form | Brief: process runs on Workday; we plug in, not replace |
 
-## 18. What we'd build next
+## 18. Polish backlog
+
+- Voice/SMS conversation sounds repetitive ("Got it… Got it…"). Vary acknowledgments, sound more natural.
+- UI polish across all screens (increment 10).
+
+## 19. What we'd build next
 
 _TBD_
