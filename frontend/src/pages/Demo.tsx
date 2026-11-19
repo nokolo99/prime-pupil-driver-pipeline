@@ -27,7 +27,12 @@ export default function Demo() {
     setNote(`Simulated time is now +${r.offset_days} days. The engine took ${r.actions} action(s).`);
   }
   const [voice, setVoice] = useState<{ ready: boolean } | null>(null);
-  useEffect(() => { api<{ ready: boolean }>("/demo/voice-status").then(setVoice); }, []);
+  useEffect(() => {
+    const load = () => { api<{ ready: boolean }>("/demo/voice-status").then(setVoice).catch(() => setVoice({ ready: false })); };
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, []);
   async function callNow() {
     try { await api("/demo/call", { method: "POST", body: JSON.stringify({ phone }) }); setNote(`Calling ${phone}… answer your phone!`); }
     catch (e) { setNote(String(e)); }
@@ -100,9 +105,10 @@ export default function Demo() {
         <h2 className="mb-2 text-lg font-semibold">Candidate's phone</h2>
         <div className="mb-2 flex gap-2">
           <input className={input} value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <button disabled={!voice?.ready} title={voice?.ready ? "AI calls this number now" : "Voice not configured"}
-            className="whitespace-nowrap rounded bg-sky-700 px-3 text-sm text-white disabled:opacity-40" onClick={callNow}>📞 Call me now</button>
+          <button title="AI calls this number now"
+            className="whitespace-nowrap rounded bg-sky-700 px-3 text-sm text-white hover:bg-sky-800" onClick={callNow}>📞 Call me now</button>
         </div>
+        <p className="mb-1 text-xs">{voice?.ready ? <span className="text-emerald-700">● Voice ready</span> : <span className="text-rose-700">● Voice not connected (backend or tunnel down)</span>}</p>
         <p className="mb-2 text-xs text-stone-500">Texts appear below. Voice calls go to the real phone number; their transcript shows here and on the candidate page.</p>
         <div className="mx-auto w-80 rounded-[2rem] border-8 border-stone-800 bg-white">
           <div className="h-[28rem] space-y-2 overflow-y-auto p-3">
