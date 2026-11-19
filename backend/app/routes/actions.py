@@ -8,7 +8,8 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from .. import workday
-from ..conversation import advance, log_event, send, template
+from ..conversation import log_event, send, template
+from ..stages import NEXT_STAGE, advance
 from ..db import get_session
 from ..engine import reset_follow_up
 from ..models import (Actor, Candidate, CandidateStatus, DropReason, Sender, Stage, Step, Task,
@@ -19,7 +20,10 @@ router = APIRouter(prefix="/api/tasks", tags=["recruiter actions"])
 # Which actions make sense for which task type.
 ALLOWED = {
     "review_knockout": {"approve", "reject"},
+    "review_background_flag": {"approve", "reject"},
+    "review_drug_result": {"approve", "reject"},
     "candidate_unresponsive": {"mark_dropped", "extend"},
+    "candidate_withdrawing": {"mark_dropped"},
 }
 DEFAULT_ACTIONS = {"dismiss"}
 
@@ -47,15 +51,19 @@ def act(task_id: int, a: ActionIn, s: Session = Depends(get_session)):
     rid = a.recruiter_id or c.recruiter_id
 
     if a.action == "approve":
-        # Recruiter overrides the screening flag: continue to the next stage.
-        log_event(s, c, "recruiter_approved", Actor.recruiter, actor_id=rid, note=a.note)
-        advance(s, c, Stage.background_check)
-        body, en = template("screening_passed", c.preferred_language)
-        send(s, c, body, en, Sender.system)
-        workday.push_disposition(s, c, "advance", "Screening flag reviewed and approved", by=str(rid))
+        # Recruiter reviewed the flag and approves: continue to the next stage.
+        log_event(s, c, "recruiter_approved", Actor.recruiter, actor_id=rid, note=a.note, task_type=task.type)
+        reviewed = c.stage
+        if reviewed == Stage.screening:
+            body, en = template("screening_passed", c.preferred_language)
+            send(s, c, body, en, Sender.system)
+        workday.push_disposition(s, c, "advance", f"{reviewed.value} flag reviewed and approved", by=str(rid))
+        advance(s, c, NEXT_STAGE[reviewed])
 
     elif a.action == "reject":
-        reason = a.reason or DropReason.failed_knockout
+        default = {"review_background_flag": DropReason.failed_background_check,
+                   "review_drug_result": DropReason.failed_drug_test}.get(task.type, DropReason.failed_knockout)
+        reason = a.reason or default
         c.status, c.drop_reason, c.drop_note = CandidateStatus.rejected, reason, a.note
         log_event(s, c, "recruiter_rejected", Actor.recruiter, actor_id=rid, reason=reason.value, note=a.note)
         body, en = template("rejected", c.preferred_language, first_name=c.first_name)

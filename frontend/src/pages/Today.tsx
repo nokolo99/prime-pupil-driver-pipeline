@@ -7,11 +7,13 @@ export default function Today() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [cands, setCands] = useState<Candidate[]>([]);
+  const [flags, setFlags] = useState<{ candidate_id: number; stage: string; note: string }[]>([]);
 
   const load = () => {
       api<Task[]>("/tasks").then(setTasks);
       api<Event[]>("/events?limit=500").then(setEvents);
       api<Candidate[]>("/candidates").then(setCands);
+      api<typeof flags>("/flags").then(setFlags);
   };
   useEffect(() => {
     load();
@@ -43,6 +45,17 @@ export default function Today() {
         </div>
       </section>
 
+      {flags.length > 0 && <section>
+        <h2 className="mb-2 text-lg font-semibold">FYI <span className="text-sm font-normal text-stone-500">(no action needed)</span></h2>
+        <div className="divide-y rounded-lg border border-amber-200 bg-amber-50">
+          {flags.map((f) => (
+            <Link key={`${f.candidate_id}-${f.stage}`} to={`/candidates/${f.candidate_id}`} className="flex gap-3 p-3 text-sm hover:bg-amber-100">
+              <span className="w-40 font-medium">{name(f.candidate_id)}</span><span className="w-32 text-stone-600">{label(f.stage)}</span><span>{f.note}</span>
+            </Link>
+          ))}
+        </div>
+      </section>}
+
       <section>
         <h2 className="mb-2 text-lg font-semibold">Handled for you</h2>
         <div className="rounded-lg border bg-white p-4 text-sm">
@@ -51,6 +64,8 @@ export default function Today() {
             <div><span className="text-2xl font-semibold">{count("nudge_sent")}</span> <span className="text-stone-500">follow-ups sent</span></div>
             <div><span className="text-2xl font-semibold">{count("screening_answer")}</span> <span className="text-stone-500">answers recorded</span></div>
             <div><span className="text-2xl font-semibold">{count("stage_changed")}</span> <span className="text-stone-500">candidates moved forward</span></div>
+            <div><span className="text-2xl font-semibold">{count("bg_result_received") + count("drug_test_result")}</span> <span className="text-stone-500">results processed</span></div>
+            <div><span className="text-2xl font-semibold">{count("appointment_reminder")}</span> <span className="text-stone-500">appointment reminders</span></div>
           </div>
           <details>
             <summary className="cursor-pointer text-stone-500">Show log</summary>

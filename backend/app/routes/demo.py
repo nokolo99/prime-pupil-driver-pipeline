@@ -31,11 +31,11 @@ class Advance(BaseModel):
 
 @router.post("/clock/advance")
 def advance_clock(a: Advance, s: Session = Depends(get_session)):
-    """Move time forward in 6-hour steps, running the engine after each, so every reminder
+    """Move time forward in 2-hour steps, running the engine after each, so every reminder
     that would have fired in that window fires in order (and quiet hours are respected)."""
     actions = 0
-    for _ in range(a.days * 4):
-        clock.set_offset(clock.offset_days() + 0.25)
+    for _ in range(a.days * 12):
+        clock.set_offset(clock.offset_days() + 1 / 12)
         actions += tick(s)
     save_offset(s)
     return {"offset_days": clock.offset_days(), "actions": actions}
@@ -168,6 +168,16 @@ def force_stage(r: StageReq, s: Session = Depends(get_session)):
             sr.has_cdl_or_permit = bool(sr.has_cdl_or_permit)
             sr.knockout_flags = []
             s.add(sr)
+    if target in (Stage.background_check, Stage.drug_test):
+        for task in s.exec(select(Task).where(Task.candidate_id == c.id, Task.status == TaskStatus.open)).all():
+            task.status, task.resolution, task.resolved_at = TaskStatus.resolved, "demo_reset", t
+        c.drop_reason = c.drop_note = None
+        c.stage = STAGE_ORDER[STAGE_ORDER.index(target) - 1]
+        from ..stages import advance
+        advance(s, c, target)  # real entry actions: order BG / open drug case, text the link
+        log_event(s, c, "demo_stage_forced", Actor.system, to=target.value)
+        s.commit()
+        return {"stage": target.value}
     if target != Stage.hired:
         cur = existing.get(target) or Step(candidate_id=c.id, stage=target)
         cur.status, cur.result, cur.completed_at = StepStatus.waiting_on_candidate, None, None
@@ -185,3 +195,25 @@ def force_stage(r: StageReq, s: Session = Depends(get_session)):
     log_event(s, c, "demo_stage_forced", Actor.system, to=target.value)
     s.commit()
     return {"stage": target.value}
+
+
+
+# ---------- Demo: vendor events for the selected candidate ----------
+
+@router.get("/vendor-context")
+def vendor_context(phone: str, s: Session = Depends(get_session)):
+    from ..models import BackgroundCheck, DrugTest, Step
+    from .. import vendors
+    c = _find(s, phone)
+    out = {"stage": c.stage.value, "status": c.status.value, "bg": None, "drug": None}
+    for st in s.exec(select(Step).where(Step.candidate_id == c.id)).all():
+        bc, dt = s.get(BackgroundCheck, st.id), s.get(DrugTest, st.id)
+        if bc:
+            out["bg"] = {"order_id": bc.vendor_order_id, "form_link": bc.form_link, "form_completed": bool(bc.form_completed_at),
+                         "report_status": bc.report_status,
+                         "email_clear": vendors.sample_result_email(bc.vendor_order_id, c.first_name, c.last_name, True),
+                         "email_flagged": vendors.sample_result_email(bc.vendor_order_id, c.first_name, c.last_name, False)}
+        if dt:
+            out["drug"] = {"case_id": dt.vendor_case_id, "booking_link": dt.booking_link,
+                           "appointment_at": dt.appointment_at, "collected": bool(dt.collected_at), "result": dt.result}
+    return out

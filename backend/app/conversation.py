@@ -134,8 +134,13 @@ def handle_inbound(s: Session, candidate: Candidate, body: str, channel: Channel
         s.commit()
         return
 
+    if candidate.stage in (Stage.background_check, Stage.drug_test) and candidate.status != CandidateStatus.needs_review:
+        _handle_stage_turn(s, candidate, body, channel)
+        s.commit()
+        return
+
     if candidate.stage != Stage.screening or candidate.status == CandidateStatus.needs_review:
-        # Later stages are handled in later increments. For now, route to a recruiter.
+        # Under review, or a stage the assistant doesn't cover yet: route to a recruiter.
         create_task(s, candidate, "candidate_message", f"Candidate replied: “{body[:80]}”", priority=3)
         s.commit()
         return
@@ -224,14 +229,71 @@ def _finish_screening(s: Session, c: Candidate, step: Step, sr: ScreeningResult,
         step.status, step.result = StepStatus.passed, StepResult.pass_
         text, en = template("screening_passed", c.preferred_language)
         log_event(s, c, "screening_completed", Actor.system, result="pass")
-        advance(s, c, Stage.background_check)
 
     send(s, c, text, en, Sender.system, channel)
+    if not flags:
+        from .stages import advance  # lazy: stages imports this module
+        advance(s, c, Stage.background_check)
 
 
-def advance(s: Session, c: Candidate, to: Stage) -> None:
-    log_event(s, c, "stage_changed", Actor.system, **{"from": c.stage.value, "to": to.value})
-    c.stage, c.stage_entered_at = to, now()
-    s.add(Step(candidate_id=c.id, stage=to, status=StepStatus.not_started))
-    # The background-check flow (vendor order, form link, nudges) arrives in increment 4.
-    c.status = CandidateStatus.waiting_on_vendor
+
+# ---------- After screening: stage-aware help ----------
+
+def step_facts(s: Session, c: Candidate) -> dict:
+    """What the assistant may tell the candidate about their current step."""
+    from .models import BackgroundCheck, Clinic, DrugTest
+    from .stages import current_step, fmt_when, nearby_clinics
+    step = current_step(s, c)
+    if c.stage == Stage.background_check:
+        bc = s.get(BackgroundCheck, step.id)
+        return {"what": "Background check and driving record (DOT). Candidate fills out the vendor's online form; "
+                        "results usually take 3-5 days after the form is submitted.",
+                "form_link": bc.form_link, "form_submitted": bool(bc.form_completed_at),
+                "status": "waiting on vendor results" if bc.form_completed_at else "waiting for candidate to fill out the form"}
+    if c.stage == Stage.drug_test:
+        dt = s.get(DrugTest, step.id)
+        clinic = s.get(Clinic, dt.clinic_id) if dt.clinic_id else None
+        return {"what": "DOT drug test (urine) at a clinic in the vendor's network. Takes about 15 minutes. "
+                        "Bring a government photo ID. Results usually take 2-5 days.",
+                "booking_link": dt.booking_link,
+                "nearby_clinics": [f"{cl.name}, {cl.address} ({cl.hours})" for cl in nearby_clinics(s, c)],
+                "appointment": f"{clinic.name}, {fmt_when(dt.appointment_at)}" if dt.appointment_at else None,
+                "sample_collected": bool(dt.collected_at)}
+    return {}
+
+
+def _handle_stage_turn(s: Session, c: Candidate, body: str, channel: Channel) -> None:
+    from .stages import current_step
+    step = current_step(s, c)
+    try:
+        turn = ai.run_stage_turn(first_name=c.first_name, language=c.preferred_language, stage=c.stage.value,
+                                 step_facts=step_facts(s, c), transcript=_transcript(s, c), latest=body,
+                                 voice=(channel == Channel.voice))
+    except Exception as e:
+        log.exception("Claude stage turn failed")
+        log_event(s, c, "ai_error", Actor.ai, error=str(e)[:200])
+        text, en = template("error", c.preferred_language)
+        send(s, c, text, en, Sender.system, channel)
+        return
+
+    inbound = s.exec(select(Message).where(Message.candidate_id == c.id, Message.direction == "in")
+                     .order_by(Message.created_at.desc())).first()
+    inbound.language = turn.language
+    if turn.candidate_message_en.strip() != body.strip():
+        inbound.translation_en = turn.candidate_message_en
+    if turn.language and turn.language != c.preferred_language:
+        log_event(s, c, "language_changed", Actor.ai, **{"from": c.preferred_language, "to": turn.language})
+        c.preferred_language = turn.language
+
+    # Candidate is engaged: restart follow-ups (but never trust "I already did it"; the vendor confirms).
+    step.nudge_count, step.last_nudged_at = 0, None
+    if turn.intent == "question_handoff":
+        create_task(s, c, "candidate_question", f"Question for recruiter: “{turn.candidate_message_en[:100]}”", priority=2)
+    elif turn.intent == "wants_to_withdraw":
+        create_task(s, c, "candidate_withdrawing", f"Candidate may withdraw: “{turn.candidate_message_en[:100]}”", priority=1)
+    elif turn.intent == "claims_done":
+        log_event(s, c, "candidate_claims_done", Actor.candidate, stage=c.stage.value)
+
+    send(s, c, turn.reply, turn.reply_en, Sender.ai, channel)
+    log_event(s, c, "message_sent", Actor.ai, intent=turn.intent, stage=c.stage.value)
+    s.info["last_intent"] = turn.intent  # lets the voice route end the call on "goodbye"

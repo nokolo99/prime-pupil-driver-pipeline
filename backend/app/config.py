@@ -57,7 +57,11 @@ DEFAULT_FOLLOW_UP = (
 )
 FOLLOW_UP_SCHEDULE = {
     "screening": DEFAULT_FOLLOW_UP,
+    "background_check": DEFAULT_FOLLOW_UP,  # nudging to finish the vendor form (John's #1 holdup)
+    "drug_test": DEFAULT_FOLLOW_UP,         # nudging to book / go to the clinic (biggest drop-off)
 }
+# Vendor turnaround before results are flagged as overdue (FYI to recruiter, no action required).
+RESULTS_OVERDUE_DAYS = {"background_check": 5, "drug_test": 5}
 GIVE_UP_AFTER_DAYS = 90        # reminders stop; recruiter decides
 QUIET_HOURS = (20, 8)          # no messages or calls from 8pm to 8am local time
 LOCAL_TZ = "America/New_York"  # all depots are in one state
@@ -74,8 +78,8 @@ TEMPLATES = {
         "es": "¡Hola {first_name}! Soy el asistente de reclutamiento de Prime Pupil. Gracias por postularte para manejar con nosotros. ¿Tienes 5 minutos para unas preguntas rápidas? Responde STOP para cancelar.",
     },
     "screening_passed": {
-        "en": "Great news, you passed screening! Next step: a background check. We'll text you a link shortly. It takes about 10 minutes.",
-        "es": "¡Buenas noticias, pasaste la evaluación! Siguiente paso: una verificación de antecedentes. Te enviaremos un enlace en breve. Toma unos 10 minutos.",
+        "en": "Great news, you passed screening!",
+        "es": "¡Buenas noticias, pasaste la evaluación!",
     },
     "screening_review": {
         "en": "Thanks for your answers! A recruiter will review them and follow up within 1 business day.",
@@ -131,6 +135,62 @@ TEMPLATES = {
     "voice_later": {
         "en": "No problem. We'll follow up another time. You can also call or text us back anytime. Goodbye!",
         "es": "No hay problema. Te contactaremos en otro momento. También puedes llamarnos o escribirnos cuando quieras. ¡Adiós!",
+    },
+    "bg_start": {
+        "en": "Next step: a background check. Please fill out this short form (about 10 minutes): {link}",
+        "es": "Siguiente paso: una verificación de antecedentes. Llena este formulario corto (unos 10 minutos): {link}",
+    },
+    "bg_reminder": {
+        "en": "Hi {first_name}, your background check form is the next step to driving with Prime Pupil. It takes about 10 minutes: {link}",
+        "es": "Hola {first_name}, tu formulario de antecedentes es el siguiente paso para manejar con Prime Pupil. Toma unos 10 minutos: {link}",
+    },
+    "bg_form_received": {
+        "en": "Thanks {first_name}, we got your background check form! Results usually take 3 to 5 days. We'll text you as soon as they're in.",
+        "es": "¡Gracias {first_name}, recibimos tu formulario! Los resultados suelen tardar de 3 a 5 días. Te avisaremos en cuanto lleguen.",
+    },
+    "bg_clear": {
+        "en": "Good news {first_name}, your background check came back clear!",
+        "es": "¡Buenas noticias {first_name}, tu verificación de antecedentes salió bien!",
+    },
+    "under_review": {
+        "en": "Thanks {first_name}. A recruiter is reviewing your results and will follow up within 1 business day.",
+        "es": "Gracias {first_name}. Un reclutador está revisando tus resultados y te contactará en 1 día hábil.",
+    },
+    "drug_start": {
+        "en": "Next step: a quick DOT drug test at a clinic near you. Sign the authorization and pick a time here: {link}\nNearby clinics:\n{clinics}",
+        "es": "Siguiente paso: una prueba de drogas DOT en una clínica cercana. Firma la autorización y elige un horario aquí: {link}\nClínicas cercanas:\n{clinics}",
+    },
+    "drug_reminder": {
+        "en": "Hi {first_name}, your drug test is the next step. Book a time at a clinic near you here: {link}",
+        "es": "Hola {first_name}, tu prueba de drogas es el siguiente paso. Reserva un horario en una clínica cercana aquí: {link}",
+    },
+    "drug_booked": {
+        "en": "You're booked: {clinic}, {when}. Bring a photo ID. We'll remind you the day before.",
+        "es": "Tienes cita: {clinic}, {when}. Lleva una identificación con foto. Te recordaremos un día antes.",
+    },
+    "drug_day_before": {
+        "en": "Reminder: your drug test is tomorrow, {when}, at {clinic}. Bring a photo ID. Need a different time? {link}",
+        "es": "Recordatorio: tu prueba de drogas es mañana, {when}, en {clinic}. Lleva identificación con foto. ¿Otro horario? {link}",
+    },
+    "drug_morning_of": {
+        "en": "Today's the day! Drug test at {clinic}, {when}. Bring a photo ID. It only takes about 15 minutes.",
+        "es": "¡Hoy es el día! Prueba de drogas en {clinic}, {when}. Lleva identificación con foto. Solo toma unos 15 minutos.",
+    },
+    "drug_no_show": {
+        "en": "Hi {first_name}, looks like you couldn't make your drug test. No problem! Pick a new time here: {link}",
+        "es": "Hola {first_name}, parece que no pudiste ir a tu prueba de drogas. ¡No hay problema! Elige otro horario aquí: {link}",
+    },
+    "drug_collected": {
+        "en": "Thanks for going in, {first_name}! Results usually take 2 to 5 days. We'll text you when they're in.",
+        "es": "¡Gracias por ir, {first_name}! Los resultados suelen tardar de 2 a 5 días. Te avisaremos cuando lleguen.",
+    },
+    "drug_negative": {
+        "en": "Great news {first_name}, you passed your drug test! Next step: your CDL learner's permit. We'll send details shortly.",
+        "es": "¡Buenas noticias {first_name}, pasaste tu prueba de drogas! Siguiente paso: tu permiso de aprendiz CDL. Te enviaremos los detalles pronto.",
+    },
+    "voice_greeting_stage": {
+        "en": "Hi {first_name}! I'm Prime Pupil's automated recruiting assistant, calling about your next step: {step}. Do you have a minute?",
+        "es": "¡Hola {first_name}! Soy el asistente automatizado de reclutamiento de Prime Pupil, llamando por tu siguiente paso: {step}. ¿Tienes un minuto?",
     },
     "error": {
         "en": "Sorry, I had trouble with that. Could you send it again?",

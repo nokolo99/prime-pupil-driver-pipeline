@@ -101,8 +101,8 @@ We mapped what we *could* build for each of the 5 stages plus the recruiter side
 | 0 | Skeleton | 1 | Backend, DB, frontend talking; browser chat simulator |
 | 1 | Entry + screening | 1 | Career-page form triggers first message; EN/ES screening; knockouts → review task; candidate on dashboard with timeline |
 | 2 | Stage engine + recruiter loop | 1 | Timers, nudges, re-engagement, fast-forward; Needs-you / Handled-for-you; stuck alerts; drop-off reasons |
-| 3 | Real SMS | 1 | Same flow over Twilio on a real phone; opt-out |
-| 4 | Background check + drug test | 1 | Mock BG vendor (auto-order, email results parsed); clinic finder, reminders, no-show, mock drug-test webhook; overdue alerts; failures → review |
+| 3 | Real SMS ✅ | 1 | Same flow over Twilio on a real phone; opt-out |
+| 4 | Background check + drug test ✅ | 1 | Mock BG vendor (auto-order, email results parsed); clinic finder, reminders, no-show, mock drug-test webhook; overdue alerts; failures → review |
 | 5 | Voice | 1 | Phone screening, EN/ES |
 | 6 | Workday mock connector | 2 | Stage changes sync to mock Workday |
 | 7 | Stages 4–5 (thin) | 2 | Permit nudges, Zoom link, skills-test webhook, auto offer + e-sign |
@@ -397,6 +397,11 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Claude gets the ordered list of remaining questions; code decides order and completion | Fixed a bug where Claude had nothing to ask after an answer |
 | 11-19 | Voice: turn-based first (Twilio speech recognition + same screening logic), then streaming (ConversationRelay) for the demo | Get a working real-phone path fast; streaming is the natural-sounding experience Alex expects |
 | 11-19 | Turn-based voice tested and rejected (robotic, slow); switched to Twilio ConversationRelay with ElevenLabs voice + Deepgram (auto EN/ES detection) | Natural turn-taking + interruptions; Twilio stays the telephony layer; same conversation brain |
+| 11-19 | Assistant is stage-aware beyond screening (BG + drug test): answers questions using the candidate's current step; code still decides | Candidates need help at the stages where most time is lost |
+| 11-19 | Mock vendor pages the candidate can tap (BG form, drug test authorization + booking) | Interactive demo; mirrors real vendor-hosted pages |
+| 11-19 | BG results arrive as emails parsed by Claude (demo: one-click sample email; prod: inbound-email webhook matched by order ID) | Matches John: results come by email |
+| 11-19 | Drug test: vendor integration reports booked appointment, collection, no-show, result | John: vendor offers an integration; booking assumed (Q17) |
+| 11-19 | Overdue results (5 days) are an FYI flag to the recruiter, not a required action | Visibility without adding work (to revisit) |
 | 11-19 | Voice turns use Claude Haiku 5.5 (SMS stays on Sonnet 5.5); 0.5s merge window for split utterances | Live calls need ~2s replies; code still makes every decision, so the smaller model is safe |
 | 11-19 | Voice both outbound (follow-up calls, "call me now") and inbound | One conversation brain across SMS, voice, and simulator |
 | 11-19 | Unknown inbound callers get a polite close (no DRIVE prompt) | Applications come through Workday |
@@ -417,6 +422,8 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 
 - Voice/SMS conversation sounds repetitive ("Got it… Got it…"). Vary acknowledgments, sound more natural.
 - UI polish across all screens (increment 10).
+- Dates in Spanish messages still use English format ("Wed Dec 2").
+- While SMS is unapproved, timelines fill with "SMS undelivered" events; hide or collapse them.
 
 ## 19. What we'd build next
 

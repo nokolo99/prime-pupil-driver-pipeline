@@ -32,3 +32,4 @@ S6. Have you tried fixing this before? What didn't work?
 14. Could we encourage candidates to start studying for / booking their CDL permit earlier (it costs you nothing), so it's ready by the time they finish training?
 15. What do recruiters ask in screening today, and which answers disqualify someone automatically versus needing judgment?
 16. (Optional) Do career-page applications land directly in Workday Recruiting? (Assumed yes, since the brief says the process runs on Workday.)
+17. Drug test: do candidates book a clinic appointment through your vendor, or walk in with the authorization? (Assumed: the vendor integration tells us when an appointment is booked.)

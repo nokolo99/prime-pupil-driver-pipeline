@@ -56,14 +56,23 @@ def _say_and_hangup(text: str, lang: str = "en") -> Response:
     return _xml(str(vr))
 
 
+VOICE_STAGES = (Stage.screening, Stage.background_check, Stage.drug_test)
+STEP_NAMES = {"en": {Stage.background_check: "your background check form", Stage.drug_test: "your drug test"},
+              "es": {Stage.background_check: "tu formulario de antecedentes", Stage.drug_test: "tu prueba de drogas"}}
+
+
 def _relay_twiml(s: Session, c: Candidate, greeting_key: str) -> Response:
     """Hand the call to ConversationRelay, connected to our WebSocket."""
-    if c.stage != Stage.screening or c.status in (CandidateStatus.needs_review, CandidateStatus.rejected, CandidateStatus.dropped):
+    if c.stage not in VOICE_STAGES or c.status in (CandidateStatus.needs_review, CandidateStatus.rejected, CandidateStatus.dropped):
         text, en = template("voice_later", c.preferred_language)
         _log_spoken(s, c, text, en); s.commit()
         return _say_and_hangup(text, c.preferred_language)
 
-    greeting, en = template(greeting_key, c.preferred_language, first_name=c.first_name)
+    if c.stage == Stage.screening:
+        greeting, en = template(greeting_key, c.preferred_language, first_name=c.first_name)
+    else:
+        step = STEP_NAMES.get(c.preferred_language, STEP_NAMES["en"])[c.stage]
+        greeting, en = template("voice_greeting_stage", c.preferred_language, first_name=c.first_name, step=step)
     _log_spoken(s, c, greeting, en)
     s.commit()
     token = secrets.token_urlsafe(16)
@@ -178,13 +187,16 @@ def _process_turn(candidate_id: int, speech: str, lang: str | None) -> tuple[str
             return text, True, c.preferred_language, []
 
         last_id = s.exec(select(Message.id).where(Message.candidate_id == c.id).order_by(Message.id.desc())).first() or 0
+        stage_before = c.stage
         handle_inbound(s, c, speech, Channel.voice)  # same brain as SMS: code decides, Claude writes
+        said_goodbye = s.info.get("last_intent") == "goodbye"
         s.refresh(c)
         new_msgs = s.exec(select(Message).where(Message.candidate_id == c.id, Message.id > last_id)
                           .order_by(Message.id)).all()
         replies = [m for m in new_msgs if m.direction == "out"]
         text = " ".join(m.body for m in replies) or template("voice_no_input", c.preferred_language)[0]
-        over = c.stage != Stage.screening or c.status == CandidateStatus.needs_review
+        over = (stage_before == Stage.screening and c.stage != Stage.screening) \
+            or c.status == CandidateStatus.needs_review or said_goodbye
         if over:
             text = f"{text} {template('voice_goodbye', c.preferred_language)[0]}"
         return text, over, c.preferred_language, [m.id for m in new_msgs]

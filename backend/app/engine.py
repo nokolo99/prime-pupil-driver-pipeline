@@ -14,9 +14,13 @@ from zoneinfo import ZoneInfo
 from sqlmodel import Session, select
 
 from . import telephony
-from .config import DEFAULT_FOLLOW_UP, FOLLOW_UP_SCHEDULE, GIVE_UP_AFTER_DAYS, LOCAL_TZ, QUIET_HOURS
+from datetime import timedelta
+
+from .config import (DEFAULT_FOLLOW_UP, FOLLOW_UP_SCHEDULE, GIVE_UP_AFTER_DAYS, LOCAL_TZ, QUIET_HOURS,
+                     RESULTS_OVERDUE_DAYS)
 from .conversation import create_task, log_event, send, template
-from .models import Actor, Candidate, CandidateStatus, Sender, Step, StepStatus, Task, TaskStatus, now
+from .models import (Actor, BackgroundCheck, Candidate, CandidateStatus, Clinic, DrugTest, Sender, Stage, Step,
+                     StepStatus, Task, TaskStatus, now)
 
 log = logging.getLogger(__name__)
 
@@ -37,13 +41,82 @@ def last_activity(c: Candidate, step: Step) -> datetime:
     return max(_aware(t) for t in times)
 
 
+def _reminder(s: Session, c: Candidate, step: Step, due_day: int) -> tuple[str, str]:
+    """Stage-specific reminder text (includes the link the candidate needs)."""
+    if step.stage == Stage.background_check:
+        bc = s.get(BackgroundCheck, step.id)
+        return template("bg_reminder", c.preferred_language, first_name=c.first_name, link=bc.form_link)
+    if step.stage == Stage.drug_test:
+        dt = s.get(DrugTest, step.id)
+        return template("drug_reminder", c.preferred_language, first_name=c.first_name, link=dt.booking_link)
+    level = 1 if due_day <= 2 else 2 if due_day <= 10 else 3
+    return template(f"reminder_{level}", c.preferred_language, first_name=c.first_name)
+
+
+def _appointments(s: Session, t) -> int:
+    """Drug test appointment reminders (day before, morning of) and missed-appointment detection."""
+    from .stages import drug_event, fmt_when
+    actions = 0
+    rows = s.exec(select(DrugTest).where(DrugTest.appointment_at != None, DrugTest.collected_at == None)).all()  # noqa: E711
+    for dt in rows:
+        step = s.get(Step, dt.step_id)
+        c = s.get(Candidate, step.candidate_id)
+        if c.opted_out or step.status != StepStatus.waiting_on_candidate:
+            continue
+        appt = _aware(dt.appointment_at)
+        local_t, local_appt = t.astimezone(ZoneInfo(LOCAL_TZ)), appt.astimezone(ZoneInfo(LOCAL_TZ))
+        clinic = s.get(Clinic, dt.clinic_id)
+        args = dict(clinic=clinic.name, when=fmt_when(appt), link=dt.booking_link)
+        if t > appt + timedelta(hours=24):  # no collection a day after: treat as missed, offer to rebook
+            drug_event(s, dt.vendor_case_id, "no_show")
+            actions += 1
+        elif not dt.reminded_morning_of and local_t.date() == local_appt.date() and local_t < local_appt and not in_quiet_hours(t):
+            body, en = template("drug_morning_of", c.preferred_language, **args)
+            send(s, c, body, en, Sender.system)
+            log_event(s, c, "appointment_reminder", Actor.system, kind="morning_of")
+            dt.reminded_morning_of = dt.reminded_day_before = True
+            actions += 1
+        elif not dt.reminded_day_before and local_appt.date() - local_t.date() == timedelta(days=1) and not in_quiet_hours(t):
+            body, en = template("drug_day_before", c.preferred_language, **args)
+            send(s, c, body, en, Sender.system)
+            log_event(s, c, "appointment_reminder", Actor.system, kind="day_before")
+            dt.reminded_day_before = True
+            actions += 1
+    return actions
+
+
+def _overdue(s: Session, t) -> int:
+    """Vendor results taking too long: FYI flag for the recruiter (no action required)."""
+    actions = 0
+    for step in s.exec(select(Step).where(Step.status == StepStatus.waiting_on_vendor, Step.flag_note == None)).all():  # noqa: E711
+        if step.stage == Stage.background_check:
+            since = s.get(BackgroundCheck, step.id).form_completed_at
+        elif step.stage == Stage.drug_test:
+            since = s.get(DrugTest, step.id).collected_at
+        else:
+            continue
+        limit = RESULTS_OVERDUE_DAYS.get(step.stage.value)
+        if since and limit and t - _aware(since) > timedelta(days=limit):
+            days = (t - _aware(since)).days
+            step.flag_note = f"Results overdue ({days} days with vendor)"
+            log_event(s, s.get(Candidate, step.candidate_id), "results_overdue", Actor.system, stage=step.stage.value, days=days)
+            actions += 1
+    return actions
+
+
 def tick(s: Session) -> int:
     """Returns how many actions were taken."""
     t = now()
-    actions = 0
+    actions = _appointments(s, t) + _overdue(s, t)
     steps = s.exec(select(Step).where(Step.status == StepStatus.waiting_on_candidate)).all()
     for step in steps:
         c = s.get(Candidate, step.candidate_id)
+        if step.stage != c.stage:
+            continue
+        if step.stage == Stage.drug_test:
+            dt = s.get(DrugTest, step.id)
+            if dt and dt.appointment_at:
+                continue  # booked: appointment reminders handle it
         if c.opted_out or c.status in (CandidateStatus.needs_review, CandidateStatus.rejected,
                                        CandidateStatus.dropped, CandidateStatus.hired):
             continue
@@ -85,8 +158,7 @@ def tick(s: Session) -> int:
             log_event(s, c, "ai_call_placeholder", Actor.system, attempt=n, day=due_day)
             body, en = template("call_fallback", c.preferred_language, first_name=c.first_name)
         else:
-            level = 1 if due_day <= 2 else 2 if due_day <= 10 else 3
-            body, en = template(f"reminder_{level}", c.preferred_language, first_name=c.first_name)
+            body, en = _reminder(s, c, step, due_day)
         send(s, c, body, en, Sender.system)
         log_event(s, c, "nudge_sent", Actor.system, attempt=n, day=due_day, kind=kind, stage=step.stage.value)
         step.nudge_count, step.last_nudged_at = n, t

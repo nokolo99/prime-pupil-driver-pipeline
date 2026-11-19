@@ -44,7 +44,7 @@ export function TaskActions({ task, onDone }: { task: Task; onDone: () => void }
   }
   return (
     <div className="flex gap-1" onClick={(e) => e.preventDefault()}>
-      {task.type === "review_knockout" && <>
+      {["review_knockout", "review_background_flag", "review_drug_result"].includes(task.type) && <>
         <button disabled={busy} className={`${btn} border-emerald-600 text-emerald-800`} onClick={() => act("approve")}>Approve</button>
         <button disabled={busy} className={`${btn} border-rose-400 text-rose-700`} onClick={() => setPicking("reject")}>Reject</button>
       </>}
@@ -52,8 +52,18 @@ export function TaskActions({ task, onDone }: { task: Task; onDone: () => void }
         <button disabled={busy} className={btn} onClick={() => act("extend")}>Keep following up</button>
         <button disabled={busy} className={btn} onClick={() => setPicking("mark_dropped")}>Mark dropped</button>
       </>}
-      {!["review_knockout", "candidate_unresponsive"].includes(task.type) &&
+      {task.type === "candidate_withdrawing" &&
+        <button disabled={busy} className={btn} onClick={() => setPicking("mark_dropped")}>Mark dropped</button>}
+      {!["review_knockout", "review_background_flag", "review_drug_result", "candidate_unresponsive", "candidate_withdrawing"].includes(task.type) &&
         <button disabled={busy} className={btn} onClick={() => act("dismiss")}>Dismiss</button>}
     </div>
   );
+}
+
+// Turn URLs in message text into tappable links (vendor form / booking links).
+export function Linkify({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/\S+)/g);
+  return <>{parts.map((p, i) => /^https?:\/\//.test(p)
+    ? <a key={i} href={p} target="_blank" rel="noreferrer" className="break-all underline">{p}</a>
+    : <span key={i} className="whitespace-pre-line">{p}</span>)}</>;
 }

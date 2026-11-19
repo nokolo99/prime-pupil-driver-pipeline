@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, label, STAGES, type Lookups, type Message } from "../api";
+import { Linkify } from "../components";
 
 // Demo control panel: drives the story. Not part of the recruiter product.
 export default function Demo() {
@@ -47,6 +48,32 @@ export default function Demo() {
   async function forceStage() {
     try { await api("/demo/candidate/stage", { method: "POST", body: JSON.stringify({ phone, stage: forceTo }) }); setNote(`${phone} moved to ${label(forceTo)}.`); }
     catch (e) { setNote(`⚠ ${(e as Error).message}`); }
+  }
+
+  type Email = { from: string; subject: string; body: string };
+  type VCtx = { stage: string; status: string;
+    bg: null | { order_id: string; form_link: string; form_completed: boolean; report_status: string; email_clear: Email; email_flagged: Email };
+    drug: null | { case_id: string; booking_link: string; appointment_at: string | null; collected: boolean; result: string | null } };
+  const [vctx, setVctx] = useState<VCtx | null>(null);
+  const [email, setEmail] = useState<Email | null>(null);
+  useEffect(() => {
+    const load = () => { api<VCtx>(`/demo/vendor-context?phone=${encodeURIComponent(phone)}`).then(setVctx).catch(() => setVctx(null)); };
+    load();
+    const t = setInterval(load, 3000);
+    return () => clearInterval(t);
+  }, [phone]);
+  async function sendEmail(e: Email) {
+    setNote("Vendor email received. Claude is reading it…");
+    try {
+      const r = await api<{ processed: boolean; parsed: { status: string; summary: string } }>("/integrations/bg-vendor/email", { method: "POST", body: JSON.stringify({ sender: e.from, subject: e.subject, body: e.body }) });
+      setNote(r.processed ? `Email read: ${r.parsed.status.toUpperCase()}. ${r.parsed.summary}` : "Couldn't match/read the email → sent to a recruiter.");
+      setEmail(null);
+    } catch (err) { setNote(`⚠ ${(err as Error).message}`); }
+  }
+  async function drugEvent(event: string, result?: string) {
+    if (!vctx?.drug) return;
+    try { await api("/integrations/drug-vendor/webhook", { method: "POST", body: JSON.stringify({ case_id: vctx.drug.case_id, event, result }) }); setNote(`Drug test vendor: ${label(event)}${result ? ` (${result})` : ""}`); }
+    catch (err) { setNote(`⚠ ${(err as Error).message}`); }
   }
 
   async function resetClock() { await api("/demo/clock/reset", { method: "POST" }); setNote("Clock reset to real time."); }
@@ -106,6 +133,31 @@ export default function Demo() {
           <button className="rounded px-3 py-1 text-sm text-stone-500 hover:underline" onClick={resetClock}>Reset clock</button>
         </div>
 
+        <h2 className="pt-4 text-lg font-semibold">Simulate: vendors</h2>
+        <p className="text-sm text-stone-500">Events the background-check and drug-test vendors would send for this candidate{vctx ? ` (now: ${label(vctx.stage)} · ${label(vctx.status)})` : ""}.</p>
+        <div className="space-y-2 rounded-lg border bg-white p-3 text-sm">
+          <div className="font-medium">Background check {vctx?.bg ? <span className="font-mono text-xs text-stone-500">{vctx.bg.order_id} · {label(vctx.bg.report_status)}</span> : <span className="text-xs text-stone-400">(not started)</span>}</div>
+          {vctx?.bg && <div className="flex flex-wrap gap-2">
+            <a className="rounded border px-2 py-1 hover:bg-stone-100" href={vctx.bg.form_link} target="_blank" rel="noreferrer">Open candidate form ↗</a>
+            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => setEmail(vctx.bg!.email_clear)}>Result email: clear</button>
+            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => setEmail(vctx.bg!.email_flagged)}>Result email: flagged</button>
+          </div>}
+          {email && <div className="space-y-1 rounded border bg-stone-50 p-2">
+            <div className="text-xs text-stone-500">From: {email.from}</div>
+            <input className={input} value={email.subject} onChange={(e) => setEmail({ ...email, subject: e.target.value })} />
+            <textarea className={`${input} h-36 font-mono text-xs`} value={email.body} onChange={(e) => setEmail({ ...email, body: e.target.value })} />
+            <div className="flex gap-2"><button className="rounded bg-emerald-800 px-3 py-1 text-white" onClick={() => sendEmail(email)}>Deliver email</button><button className="text-stone-500" onClick={() => setEmail(null)}>Cancel</button></div>
+          </div>}
+          <div className="pt-2 font-medium">Drug test {vctx?.drug ? <span className="font-mono text-xs text-stone-500">{vctx.drug.case_id}{vctx.drug.appointment_at ? " · booked" : ""}{vctx.drug.collected ? " · collected" : ""}{vctx.drug.result ? ` · ${vctx.drug.result}` : ""}</span> : <span className="text-xs text-stone-400">(not started)</span>}</div>
+          {vctx?.drug && <div className="flex flex-wrap gap-2">
+            <a className="rounded border px-2 py-1 hover:bg-stone-100" href={vctx.drug.booking_link} target="_blank" rel="noreferrer">Open booking page ↗</a>
+            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => drugEvent("no_show")}>Missed appointment</button>
+            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => drugEvent("collected")}>Sample collected</button>
+            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => drugEvent("result", "negative")}>Result: negative</button>
+            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => drugEvent("result", "non_negative")}>Result: non-negative</button>
+          </div>}
+        </div>
+
         <h2 className="pt-4 text-lg font-semibold">Candidate controls</h2>
         <p className="text-sm text-stone-500">Acts on the candidate whose phone is selected on the right.</p>
         <div className="flex flex-wrap items-center gap-2">
@@ -136,7 +188,7 @@ export default function Demo() {
         <div className="mx-auto w-80 rounded-[2rem] border-8 border-stone-800 bg-white">
           <div className="h-[28rem] space-y-2 overflow-y-auto p-3">
             {msgs.map((m) => (
-              <div key={m.id} className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${m.direction === "in" ? "ml-auto bg-sky-500 text-white" : "bg-stone-200"}`}>{m.channel === "voice" ? "📞 " : ""}{m.body}</div>
+              <div key={m.id} className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${m.direction === "in" ? "ml-auto bg-sky-500 text-white" : "bg-stone-200"}`}>{m.channel === "voice" ? "📞 " : ""}<Linkify text={m.body} /></div>
             ))}
             {busy && <div className="w-12 rounded-2xl bg-stone-200 px-3 py-2 text-sm text-stone-500">…</div>}
             <div ref={end} />

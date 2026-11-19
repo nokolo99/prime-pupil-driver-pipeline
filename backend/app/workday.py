@@ -17,3 +17,8 @@ def _write(s: Session, c: Candidate, action: str, payload: dict) -> None:
 def push_disposition(s: Session, c: Candidate, decision: str, reason: str | None = None, by: str | None = None) -> None:
     """Recruiter decision (advance / reject / dropped) written back to the candidate's Workday record."""
     _write(s, c, "disposition", {"decision": decision, "reason": reason, "decided_by": by})
+
+
+def push_stage(s: Session, c: Candidate, stage: str) -> None:
+    """Keep the Workday candidate record's step in sync with ours."""
+    _write(s, c, "stage_update", {"stage": stage})

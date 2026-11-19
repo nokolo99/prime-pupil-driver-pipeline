@@ -119,3 +119,63 @@ def translate(text: str, to_language: str) -> str:
         output_format=Translation,
     )
     return resp.parsed_output.text if resp.parsed_output else text
+
+
+# ---------- After screening: stage-aware help ----------
+
+class StageTurn(BaseModel):
+    intent: Literal[
+        "question_answered",  # answered from the step facts or the facts sheet
+        "question_handoff",   # needs a recruiter
+        "claims_done",        # says they already did the step (we verify with the vendor, never trust this)
+        "wants_to_withdraw",  # no longer interested / took another job
+        "goodbye",            # wrapping up (voice: end the call)
+        "other",
+    ]
+    language: str = Field(description="ISO 639-1 code of the language the candidate wrote in")
+    candidate_message_en: str = Field(description="English translation of the candidate's latest message")
+    reply: str = Field(description="Your reply, in the candidate's language")
+    reply_en: str = Field(description="English translation of your reply")
+
+
+STAGE_SYSTEM = f"""You are the recruiting assistant for Prime Pupil Transportation, helping a driver candidate through their CURRENT hiring step.
+
+Your job: help them complete the step. Answer questions using ONLY the step details and facts below, and always point them to the concrete next action (e.g. the link). Never say whether they passed or failed anything, never promise outcomes, and never change their status. If they say they already did the step, thank them and say you'll confirm with the vendor (intent "claims_done"). If they want to stop, set "wants_to_withdraw" and kindly say a recruiter will follow up. If the facts don't cover a question, set "question_handoff" and say a recruiter will get back to them; don't guess.
+Reply in the candidate's language. Plain, warm, short: under 160 characters when possible, no markdown, no emojis. Vary your wording naturally; don't start every reply with the same phrase.
+
+Facts:
+{FACTS}"""
+
+
+def run_stage_turn(*, first_name: str, language: str, stage: str, step_facts: dict,
+                   transcript: list[tuple[str, str]], latest: str, voice: bool = False) -> StageTurn:
+    history = "\n".join(f"{who}: {text}" for who, text in transcript[-12:])
+    user = (f"Candidate: {first_name} (preferred language {language})\nCurrent step: {stage}\n"
+            f"Step details: {json.dumps(step_facts, ensure_ascii=False, default=str)}\n\n"
+            f"Conversation so far:\n{history}\n\nCandidate's latest message:\n{latest}")
+    resp = _call(CLAUDE_MODEL_VOICE if voice else CLAUDE_MODEL, max_tokens=1500, output_config={"effort": "low"},
+                 system=STAGE_SYSTEM + (VOICE_NOTE if voice else ""),
+                 messages=[{"role": "user", "content": user}], output_format=StageTurn)
+    if resp.stop_reason == "refusal" or resp.parsed_output is None:
+        raise RuntimeError(f"No usable output (stop_reason={resp.stop_reason})")
+    return resp.parsed_output
+
+
+# ---------- Vendor result emails ----------
+
+class BgEmail(BaseModel):
+    order_id: Optional[str] = Field(None, description="The vendor order number, exactly as written")
+    candidate_name: Optional[str] = None
+    status: Literal["clear", "consider", "unknown"] = Field(description="clear = no issues; consider = anything needing review")
+    summary: str = Field(description="One-sentence factual summary of findings for a recruiter")
+
+
+def parse_bg_email(subject: str, body: str) -> BgEmail:
+    """Extract the result from a background-check vendor's email. Code decides what to do with it."""
+    resp = _call(CLAUDE_MODEL, max_tokens=1000, output_config={"effort": "low"},
+                 system="Extract the background check result from this vendor email. Do not infer anything not stated. "
+                        "If the overall status is not explicit, use 'unknown'.",
+                 messages=[{"role": "user", "content": f"Subject: {subject}\n\n{body}"}], output_format=BgEmail)
+    if resp.parsed_output is None:
+        raise RuntimeError("Could not parse email")
+    return resp.parsed_output

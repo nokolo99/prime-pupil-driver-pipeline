@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, asDate, label, STAGES, type Candidate, type Event, type Message, type Task } from "../api";
-import { StatusPill, TaskActions } from "../components";
+import { Linkify, StatusPill, TaskActions } from "../components";
 
 type Detail = {
   candidate: Candidate; messages: Message[]; events: Event[]; tasks: Task[];
   screening: Record<string, unknown> | null;
+  steps: { stage: string; flag_note: string | null; nudge_count: number }[];
+  background_check: Record<string, string | null> | null;
+  drug_test: Record<string, string | number | null> | null;
 };
 
 const SCREENING_LABELS: Record<string, string> = {
@@ -60,7 +63,7 @@ export default function CandidateDetail() {
           <div className="max-h-[32rem] space-y-2 overflow-y-auto rounded-lg border bg-white p-3">
             {d.messages.map((m) => (
               <div key={m.id} className={`max-w-[85%] ${m.direction === "in" ? "" : "ml-auto text-right"}`}>
-                <div className={`inline-block rounded-2xl px-3 py-2 text-left text-sm ${m.direction === "in" ? "bg-stone-200" : "bg-emerald-700 text-white"}`}>{m.body}</div>
+                <div className={`inline-block rounded-2xl px-3 py-2 text-left text-sm ${m.direction === "in" ? "bg-stone-200" : "bg-emerald-700 text-white"}`}><Linkify text={m.body} /></div>
                 {m.translation_en && <div className="mt-0.5 text-xs italic text-stone-500">EN: {m.translation_en}</div>}
                 <div className="text-[10px] text-stone-400">{m.channel === "voice" ? "📞 Call · " : ""}{m.direction === "in" ? "Candidate" : label(m.sender)} · {asDate(m.created_at).toLocaleTimeString()}</div>
               </div>
@@ -81,6 +84,32 @@ export default function CandidateDetail() {
             </div>
           </section>
 
+          {d.steps.filter((st) => st.flag_note).map((st) => (
+            <div key={st.stage} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">FYI · {label(st.stage)}: {st.flag_note}</div>
+          ))}
+
+          {d.background_check && <section>
+            <h3 className="mb-2 font-semibold">Background check</h3>
+            <div className="rounded-lg border bg-white text-sm">
+              {([["Vendor order", d.background_check.vendor_order_id], ["Form submitted", d.background_check.form_completed_at ? asDate(d.background_check.form_completed_at).toLocaleString() : "Not yet"],
+                ["Status", label(d.background_check.report_status ?? "")], ["Findings", d.background_check.flags]] as [string, string | null][]).map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-4 border-b px-3 py-1.5 last:border-0"><span className="text-stone-500">{k}</span><span className="text-right font-medium">{v ?? "—"}</span></div>
+              ))}
+            </div>
+          </section>}
+
+          {d.drug_test && <section>
+            <h3 className="mb-2 font-semibold">Drug test</h3>
+            <div className="rounded-lg border bg-white text-sm">
+              {([["Vendor case", d.drug_test.vendor_case_id], ["Clinic", d.drug_test.clinic_name],
+                ["Appointment", d.drug_test.appointment_at ? asDate(String(d.drug_test.appointment_at)).toLocaleString() : "Not booked"],
+                ["Missed appointments", d.drug_test.no_show_count], ["Sample collected", d.drug_test.collected_at ? asDate(String(d.drug_test.collected_at)).toLocaleString() : "Not yet"],
+                ["Result", d.drug_test.result ? label(String(d.drug_test.result)) : "—"]] as [string, string | number | null][]).map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-4 border-b px-3 py-1.5 last:border-0"><span className="text-stone-500">{k}</span><span className="text-right font-medium">{v ?? "—"}</span></div>
+              ))}
+            </div>
+          </section>}
+
           <section>
             <h3 className="mb-2 font-semibold">Timeline</h3>
             <ol className="space-y-1 rounded-lg border bg-white p-3 text-sm">
@@ -88,7 +117,7 @@ export default function CandidateDetail() {
                 <li key={e.id} className="flex gap-2">
                   <span className="w-20 shrink-0 text-xs text-stone-400">{asDate(e.created_at).toLocaleTimeString()}</span>
                   <span className={`w-16 shrink-0 text-xs uppercase ${e.actor === "recruiter" ? "text-sky-700" : "text-stone-500"}`}>{e.actor}</span>
-                  <span>{label(e.type)}{e.type === "nudge_sent" ? ` #${e.details.attempt} (day ${e.details.day}, ${e.details.kind})` : ""}{e.type === "workday_synced" ? `: ${e.details.decision}` : ""}{e.type === "stage_changed" ? `: ${label(String(e.details.to))}` : ""}{e.type === "screening_answer" ? `: ${Object.entries(e.details.answers as object).map(([k, v]) => `${k}=${v}`).join(", ")}` : ""}</span>
+                  <span>{label(e.type)}{e.type === "nudge_sent" ? ` #${e.details.attempt} (day ${e.details.day}, ${e.details.kind})` : ""}{e.type === "workday_synced" ? `: ${e.details.decision ?? e.details.stage}` : ""}{e.type === "bg_result_received" ? `: ${e.details.status}` : ""}{e.type === "drug_test_result" ? `: ${e.details.result}` : ""}{e.type === "stage_changed" ? `: ${label(String(e.details.to))}` : ""}{e.type === "screening_answer" ? `: ${Object.entries(e.details.answers as object).map(([k, v]) => `${k}=${v}`).join(", ")}` : ""}</span>
                 </li>
               ))}
             </ol>

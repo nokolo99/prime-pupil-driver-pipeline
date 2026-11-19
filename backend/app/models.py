@@ -164,6 +164,7 @@ class Step(SQLModel, table=True):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     result: Optional[StepResult] = None
+    flag_note: Optional[str] = None          # FYI for recruiters, e.g. "Results overdue" (no action required)
 
 
 # ---------- Step details (1:1 with Step) ----------
@@ -193,10 +194,15 @@ class BackgroundCheck(SQLModel, table=True):
 
 class DrugTest(SQLModel, table=True):
     step_id: int = Field(foreign_key="step.id", primary_key=True)
+    booking_link: Optional[str] = None
     auth_sent_at: Optional[datetime] = None
+    auth_signed_at: Optional[datetime] = None
     clinic_id: Optional[int] = Field(default=None, foreign_key="clinic.id")
     appointment_at: Optional[datetime] = None
     no_show_count: int = 0
+    reminded_day_before: bool = False
+    reminded_morning_of: bool = False
+    collected_at: Optional[datetime] = None
     vendor_case_id: Optional[str] = None
     result: Optional[str] = None     # negative, non_negative, cancelled
     result_received_at: Optional[datetime] = None
