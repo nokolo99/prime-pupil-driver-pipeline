@@ -66,7 +66,12 @@ def place_call(to: str, candidate_id: int, reason: str) -> Optional[str]:
         to=to,
         from_=os.environ["TWILIO_PHONE_NUMBER"],
         url=f"{PUBLIC_URL}/voice/answer?candidate_id={candidate_id}&reason={reason}",
-        machine_detection="Enable",  # lets us leave a voicemail instead of talking to a machine
+        # Voicemail detection runs in the background so the agent speaks immediately on answer;
+        # if it turns out to be a machine, /voice/amd switches the call to our voicemail message.
+        machine_detection="Enable",
+        async_amd="true",
+        async_amd_status_callback=f"{PUBLIC_URL}/voice/amd?candidate_id={candidate_id}&reason={reason}",
+        async_amd_status_callback_method="POST",
     )
     return call.sid
 

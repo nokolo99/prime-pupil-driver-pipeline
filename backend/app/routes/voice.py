@@ -80,7 +80,11 @@ def _relay_twiml(s: Session, c: Candidate, greeting_key: str) -> Response:
         f'<Connect action="/voice/relay-ended?candidate_id={c.id}">'
         f'<ConversationRelay url={quoteattr(ws_url)} welcomeGreeting={quoteattr(greeting)} '
         f'transcriptionLanguage="{RELAY_LANGUAGE}" transcriptionProvider="{RELAY_TRANSCRIPTION_PROVIDER}" '
-        f'ttsLanguage="{tts_lang}" ttsProvider="{RELAY_TTS_PROVIDER}" voice="{voice}" interruptible="any">'
+        f'ttsLanguage="{tts_lang}" ttsProvider="{RELAY_TTS_PROVIDER}" voice="{voice}" '
+        # Echo/backchannel handling: don't treat the agent's own voice or "mm-hm" as the caller interrupting.
+        'interruptible="any" interruptSensitivity="medium" echoPromptFiltering="true" ignoreBackchannel="true" '
+        # A "hello?" while the greeting plays shouldn't cut it off.
+        'welcomeGreetingInterruptible="dtmf">'
         f'{languages}</ConversationRelay>'
         '</Connect></Response>'
     )
@@ -113,6 +117,29 @@ async def answer(request: Request, candidate_id: int, reason: str = "follow_up",
         return _say_and_hangup(text, c.preferred_language)
     log_event(s, c, "call_answered", Actor.candidate, reason=reason, call_sid=form.get("CallSid"))
     return _relay_twiml(s, c, "voice_greeting")
+
+
+@router.post("/amd")
+async def amd_result(request: Request, candidate_id: int, reason: str = "follow_up", s: Session = Depends(get_session)):
+    """Async answering-machine detection result. The agent is already talking; if it's a voicemail,
+    swap the call over to leaving our voicemail message."""
+    form = await _verified_form(request)
+    answered_by = form.get("AnsweredBy", "")
+    c = s.get(Candidate, candidate_id)
+    if c and (answered_by.startswith("machine") or answered_by == "fax"):
+        text, en = template("voicemail", c.preferred_language, first_name=c.first_name)
+        _log_spoken(s, c, text, en)
+        log_event(s, c, "voicemail_left", Actor.system, reason=reason)
+        s.commit()
+        vr = VoiceResponse()
+        vr.pause(length=1)
+        vr.say(text, voice=VOICES.get(c.preferred_language, VOICES["en"])[0])
+        vr.hangup()
+        try:
+            await asyncio.to_thread(lambda: telephony.client().calls(form.get("CallSid")).update(twiml=str(vr)))
+        except Exception:
+            log.exception("could not switch call to voicemail")
+    return Response(status_code=204)
 
 
 @router.post("/relay-ended")

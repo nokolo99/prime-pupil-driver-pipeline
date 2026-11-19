@@ -106,8 +106,8 @@ TEMPLATES = {
         "es": "Hola {first_name}, gracias por tu interés en manejar con Prime Pupil. Después de revisarla, no podemos continuar con tu solicitud en este momento. Te deseamos lo mejor.",
     },
     "voice_greeting": {
-        "en": "Hi {first_name}, this is Prime Pupil's automated recruiting assistant, calling about your school bus driver application. Do you have a few minutes to continue? Puedes hablarme en español si prefieres.",
-        "es": "Hola {first_name}, soy el asistente automatizado de reclutamiento de Prime Pupil, llamando sobre tu solicitud para conductor de autobús escolar. ¿Tienes unos minutos para continuar? You can also speak to me in English.",
+        "en": "Hi {first_name}! I'm Prime Pupil's automated recruiting assistant, calling about your bus driver application. Got a few minutes? Puedes hablarme en español.",
+        "es": "¡Hola {first_name}! Soy el asistente automatizado de reclutamiento de Prime Pupil, llamando por tu solicitud de conductor. ¿Tienes unos minutos? You can also speak English.",
     },
     "voice_inbound_greeting": {
         "en": "Hi {first_name}, thanks for calling Prime Pupil. This is our automated recruiting assistant. Do you have a few minutes to continue your application? Puedes hablarme en español si prefieres.",
