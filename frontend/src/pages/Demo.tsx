@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type Lookups, type Message } from "../api";
+import { api, label, STAGES, type Lookups, type Message } from "../api";
 
 // Demo control panel: drives the story. Not part of the recruiter product.
 export default function Demo() {
@@ -35,6 +35,17 @@ export default function Demo() {
   }, []);
   async function callNow() {
     try { await api("/demo/call", { method: "POST", body: JSON.stringify({ phone }) }); setNote(`Calling ${phone}… answer your phone!`); }
+    catch (e) { setNote(`⚠ ${(e as Error).message}`); }
+  }
+
+  const [forceTo, setForceTo] = useState("screening");
+  async function restartCandidate() {
+    if (!confirm(`Restart ${phone} from scratch? Their conversation and progress will be cleared.`)) return;
+    try { await api("/demo/candidate/restart", { method: "POST", body: JSON.stringify({ phone }) }); setNote(`Restarted ${phone}: intro re-sent.`); }
+    catch (e) { setNote(`⚠ ${(e as Error).message}`); }
+  }
+  async function forceStage() {
+    try { await api("/demo/candidate/stage", { method: "POST", body: JSON.stringify({ phone, stage: forceTo }) }); setNote(`${phone} moved to ${label(forceTo)}.`); }
     catch (e) { setNote(`⚠ ${(e as Error).message}`); }
   }
 
@@ -93,6 +104,16 @@ export default function Demo() {
         <div className="flex flex-wrap gap-2">
           {[1, 3, 7, 30, 90].map((d) => <button key={d} className="rounded border bg-white px-3 py-1 text-sm hover:bg-stone-100" onClick={() => skip(d)}>+{d} day{d > 1 ? "s" : ""}</button>)}
           <button className="rounded px-3 py-1 text-sm text-stone-500 hover:underline" onClick={resetClock}>Reset clock</button>
+        </div>
+
+        <h2 className="pt-4 text-lg font-semibold">Candidate controls</h2>
+        <p className="text-sm text-stone-500">Acts on the candidate whose phone is selected on the right.</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="rounded border bg-white px-3 py-1 text-sm hover:bg-stone-100" onClick={restartCandidate}>↺ Restart from scratch</button>
+          <select className="rounded border bg-white px-2 py-1 text-sm" value={forceTo} onChange={(e) => setForceTo(e.target.value)}>
+            {STAGES.filter((st) => st !== "application").map((st) => <option key={st} value={st}>{label(st)}</option>)}
+          </select>
+          <button className="rounded border bg-white px-3 py-1 text-sm hover:bg-stone-100" onClick={forceStage}>Jump to stage</button>
         </div>
 
         <h2 className="pt-4 text-lg font-semibold">Workday: what we sent</h2>
