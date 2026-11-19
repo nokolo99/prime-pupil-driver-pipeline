@@ -8,12 +8,15 @@ export default function Pipeline() {
   const [lk, setLk] = useState<Lookups>({ depots: [], recruiters: [] });
   const [stage, setStage] = useState<string | null>(null);
   const [depot, setDepot] = useState<string>("");
+  const [sla, setSla] = useState<Record<string, number>>({});
 
   useEffect(() => {
     api<Candidate[]>("/candidates").then(setCandidates);
     api<Lookups>("/lookups").then(setLk);
+    api<{ stage_sla_days: Record<string, number> }>("/config").then((c) => setSla(c.stage_sla_days));
   }, []);
 
+  const stuck = (c: Candidate) => !["dropped", "rejected", "hired"].includes(c.status) && sla[c.stage] !== undefined && daysSince(c.stage_entered_at) > sla[c.stage];
   const depotName = (id: number | null) => lk.depots.find((d) => d.id === id)?.name ?? "—";
   const inDepot = candidates.filter((c) => !depot || String(c.depot_id) === depot);
   const shown = inDepot.filter((c) => !stage || c.stage === stage);
@@ -49,12 +52,12 @@ export default function Pipeline() {
           <tbody className="divide-y">
             {shown.length === 0 && <tr><td colSpan={7} className="p-4 text-stone-500">No candidates.</td></tr>}
             {shown.map((c) => (
-              <tr key={c.id} className="hover:bg-stone-50">
+              <tr key={c.id} className={stuck(c) ? "bg-rose-50" : "hover:bg-stone-50"}>
                 <td className="p-3"><Link className="font-medium text-emerald-800 hover:underline" to={`/candidates/${c.id}`}>{c.first_name} {c.last_name}</Link></td>
                 <td>{depotName(c.depot_id)}</td>
                 <td>{label(c.stage)}</td>
                 <td><StatusPill status={c.status} /></td>
-                <td>{daysSince(c.stage_entered_at)}</td>
+                <td className={stuck(c) ? "font-semibold text-rose-700" : ""}>{daysSince(c.stage_entered_at)}{stuck(c) ? " ⚠" : ""}</td>
                 <td className="text-stone-500">{c.last_contacted_at ? timeAgo(c.last_contacted_at) : "—"}</td>
                 <td className="uppercase text-stone-500">{c.preferred_language}</td>
               </tr>

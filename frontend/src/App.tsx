@@ -3,6 +3,7 @@ import Today from "./pages/Today";
 import Pipeline from "./pages/Pipeline";
 import CandidateDetail from "./pages/CandidateDetail";
 import Demo from "./pages/Demo";
+import { ClockBanner } from "./components";
 
 const link = ({ isActive }: { isActive: boolean }) =>
   `px-3 py-1.5 rounded-md text-sm ${isActive ? "bg-emerald-800 text-white" : "text-stone-700 hover:bg-stone-200"}`;
@@ -10,6 +11,7 @@ const link = ({ isActive }: { isActive: boolean }) =>
 export default function App() {
   return (
     <div className="min-h-screen">
+      <ClockBanner />
       <header className="border-b bg-white">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-4">
           <span className="font-semibold">Prime Pupil · Driver Pipeline</span>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, asDate, label, STAGES, type Candidate, type Event, type Message, type Task } from "../api";
-import { StatusPill } from "../components";
+import { StatusPill, TaskActions } from "../components";
 
 type Detail = {
   candidate: Candidate; messages: Message[]; events: Event[]; tasks: Task[];
@@ -45,11 +45,14 @@ export default function CandidateDetail() {
         ))}
       </ol>
 
-      {d.tasks.filter((t) => t.type).length > 0 && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm">
-          {d.tasks.map((t) => <div key={t.id}>⚑ {t.reason}</div>)}
+      {d.tasks.filter((t) => t.status === "open").length > 0 && (
+        <div className="space-y-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm">
+          {d.tasks.filter((t) => t.status === "open").map((t) => (
+            <div key={t.id} className="flex flex-wrap items-center justify-between gap-2"><span>⚑ {t.reason}</span><TaskActions task={t} onDone={() => api<Detail>(`/candidates/${id}`).then(setD)} /></div>
+          ))}
         </div>
       )}
+      {c.drop_reason && <div className="text-sm text-stone-600">{label(c.status)}: {label(c.drop_reason)}</div>}
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section>
@@ -85,7 +88,7 @@ export default function CandidateDetail() {
                 <li key={e.id} className="flex gap-2">
                   <span className="w-20 shrink-0 text-xs text-stone-400">{asDate(e.created_at).toLocaleTimeString()}</span>
                   <span className={`w-16 shrink-0 text-xs uppercase ${e.actor === "recruiter" ? "text-sky-700" : "text-stone-500"}`}>{e.actor}</span>
-                  <span>{label(e.type)}{e.type === "stage_changed" ? `: ${label(String(e.details.to))}` : ""}{e.type === "screening_answer" ? `: ${Object.entries(e.details.answers as object).map(([k, v]) => `${k}=${v}`).join(", ")}` : ""}</span>
+                  <span>{label(e.type)}{e.type === "nudge_sent" ? ` #${e.details.attempt} (day ${e.details.day}, ${e.details.kind})` : ""}{e.type === "workday_synced" ? `: ${e.details.decision}` : ""}{e.type === "stage_changed" ? `: ${label(String(e.details.to))}` : ""}{e.type === "screening_answer" ? `: ${Object.entries(e.details.answers as object).map(([k, v]) => `${k}=${v}`).join(", ")}` : ""}</span>
                 </li>
               ))}
             </ol>

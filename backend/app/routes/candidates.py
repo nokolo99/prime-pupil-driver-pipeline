@@ -44,6 +44,13 @@ def recent_events(limit: int = 100, session: Session = Depends(get_session)):
     return session.exec(select(Event).order_by(Event.created_at.desc()).limit(limit)).all()
 
 
+@router.get("/config")
+def ui_config():
+    from ..config import STAGE_SLA_DAYS
+    from ..models import DropReason
+    return {"stage_sla_days": STAGE_SLA_DAYS, "drop_reasons": [r.value for r in DropReason]}
+
+
 @router.get("/lookups")
 def lookups(session: Session = Depends(get_session)):
     return {

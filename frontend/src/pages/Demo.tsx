@@ -12,7 +12,21 @@ export default function Demo() {
   const [note, setNote] = useState("");
   const end = useRef<HTMLDivElement>(null);
 
+  const [outbox, setOutbox] = useState<{ id: number; workday_id: string | null; action: string; payload: Record<string, unknown> }[]>([]);
   useEffect(() => { api<Lookups>("/lookups").then(setLk); }, []);
+  useEffect(() => {
+    const load = () => { api<typeof outbox>("/demo/workday-outbox").then(setOutbox); };
+    load();
+    const t = setInterval(load, 3000);
+    return () => clearInterval(t);
+  }, []);
+
+  async function skip(days: number) {
+    setNote(`Skipping ahead ${days} day(s)…`);
+    const r = await api<{ offset_days: number; actions: number }>("/demo/clock/advance", { method: "POST", body: JSON.stringify({ days }) });
+    setNote(`Simulated time is now +${r.offset_days} days. The engine took ${r.actions} action(s).`);
+  }
+  async function resetClock() { await api("/demo/clock/reset", { method: "POST" }); setNote("Clock reset to real time."); }
   useEffect(() => {
     const load = () => api<Message[]>(`/sim/messages?phone=${encodeURIComponent(phone)}`).then(setMsgs);
     load();
@@ -59,6 +73,20 @@ export default function Demo() {
           <button className="col-span-2 rounded bg-emerald-800 py-1.5 text-sm text-white" onClick={apply}>Submit application</button>
         </div>
         {note && <p className="text-xs text-stone-600">{note}</p>}
+
+        <h2 className="pt-4 text-lg font-semibold">Simulate: time passing</h2>
+        <p className="text-sm text-stone-500">Moves the system clock forward so follow-ups fire as if days went by.</p>
+        <div className="flex flex-wrap gap-2">
+          {[1, 3, 7, 30, 90].map((d) => <button key={d} className="rounded border bg-white px-3 py-1 text-sm hover:bg-stone-100" onClick={() => skip(d)}>+{d} day{d > 1 ? "s" : ""}</button>)}
+          <button className="rounded px-3 py-1 text-sm text-stone-500 hover:underline" onClick={resetClock}>Reset clock</button>
+        </div>
+
+        <h2 className="pt-4 text-lg font-semibold">Workday: what we sent</h2>
+        <p className="text-sm text-stone-500">Mock outbound connector. In production, these are Workday API calls.</p>
+        <div className="max-h-48 divide-y overflow-y-auto rounded-lg border bg-white text-xs">
+          {outbox.length === 0 && <p className="p-3 text-stone-500">Nothing sent yet.</p>}
+          {outbox.map((o) => <div key={o.id} className="p-2 font-mono">{o.workday_id ?? "—"} · {o.action} · {JSON.stringify(o.payload)}</div>)}
+        </div>
       </section>
 
       <section>

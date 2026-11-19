@@ -108,6 +108,7 @@ We mapped what we *could* build for each of the 5 stages plus the recruiter side
 | 7 | Stages 4–5 (thin) | 2 | Permit nudges, Zoom link, skills-test webhook, auto offer + e-sign |
 | 8 | Real-time + takeover + VP metrics | 2 | Dashboard auto-refreshes; recruiter can reply; funnel view |
 | 9 | Deploy + demo data | — | Hosted, seeded with realistic candidates |
+| 10 | UI polish | — | Visual cleanup across all screens (deliberately last) |
 
 ## 8. Architecture
 
@@ -309,6 +310,19 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | **Candidate detail** | "Why did they stop?" | Progress bar across stages, conversation thread (with English translation under non-English messages), event timeline, step details, actions (approve/reject review, mark dropped with reason). |
 | **Demo control panel** (demo only) | Drive the story | Career-page form link, fast-forward X days, simulate vendor events (BG email arrives, drug result, no-show). |
 
+### Recruiter actions
+| Task | Actions | What happens |
+|---|---|---|
+| Screening flag | Approve / Reject (with reason) | Approve → advance + next-step text. Reject → templated message in candidate's language. Both written to Workday (mock). |
+| Unresponsive (day 90) | Keep following up / Mark dropped (with reason) | Restart the 90-day schedule, or drop + write to Workday. |
+| Other (questions, no consent) | Dismiss | Logged. |
+
+### Follow-up engine
+- Runs every 30s (production: scheduler / worker queue). Schedule per stage in config: SMS d1, d2, d4 → AI call d5 → SMS d7, d10, d14 → call d15 → alternating weekly → **day 90: stop, recruiter task.**
+- Restarts whenever the candidate replies. Quiet hours 8pm–8am. Never drops or rejects anyone.
+- Until voice ships, scheduled calls are logged and sent as texts.
+- **Demo clock:** one global simulated offset; "skip ahead" moves time in 6-hour steps, running the engine each step.
+
 ### Decisions
 - **Home = Today**, because John's #1 pain is recruiters chasing people.
 - **Pipeline = stage counts + list**, not kanban: ~600 active candidates would make kanban unusable.
@@ -380,6 +394,11 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Conversation = code decides, Claude writes (one structured call per turn; no agent tools) | Predictable, auditable; Claude never advances or rejects anyone |
 | 11-19 | Consequential messages (intro, passed, under review) use fixed templates, not AI wording | Exact wording is reviewable by HR/legal; AI handles the conversational parts |
 | 11-19 | Claude gets the ordered list of remaining questions; code decides order and completion | Fixed a bug where Claude had nothing to ask after an answer |
+| 11-19 | Approve/reject happens in our dashboard and syncs to Workday (mock) | One place for recruiters to act; Workday stays system of record |
+| 11-19 | Follow-ups run for 90 days (configurable), mixing SMS and AI voice calls; at day 90 reminders stop and a recruiter decides | Solve drop-off by never abandoning candidates early; humans only step in at the end |
+| 11-19 | Unresponsive candidates get AI calls, not recruiter calls | Recruiter time is the bottleneck John named |
+| 11-19 | "Talk to a person" handoff is out of scope (no recruiter reply box) | Keep focus on automated follow-up |
+| 11-19 | Screening tested and accepted; UI polish deferred to the very end | Function first; polish once the flow is complete |
 | 11-19 | EN + ES fully supported/tested; other languages answered automatically, untested | Brief priority is Spanish; Claude handles most languages |
 | 11-19 | Off-script questions answered only from a configurable facts sheet; otherwise → recruiter task | Claude never invents pay/benefits; placeholders flagged as assumptions |
 | 11-19 | Agent confirms back what the candidate said before moving on | Catches misreads; candidate trust |

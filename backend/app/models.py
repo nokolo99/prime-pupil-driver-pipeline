@@ -14,7 +14,9 @@ from sqlmodel import Field, SQLModel
 
 
 def now() -> datetime:
-    return datetime.now(timezone.utc)
+    """Current time, including the demo clock offset (see clock.py). All timestamps go through here."""
+    from .clock import offset
+    return datetime.now(timezone.utc) + offset()
 
 
 # ---------- Enums ----------
@@ -238,4 +240,22 @@ class Task(SQLModel, table=True):
     resolution: Optional[str] = None
     resolved_by: Optional[int] = None
     resolved_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=now)
+
+
+# ---------- System ----------
+
+class Setting(SQLModel, table=True):
+    """Small key/value store (e.g. the demo clock offset)."""
+    key: str = Field(primary_key=True)
+    value: str
+
+
+class WorkdayOutbox(SQLModel, table=True):
+    """Every write we would make to Workday. The mock connector records it here; the real one would call the API."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    candidate_id: int = Field(foreign_key="candidate.id", index=True)
+    workday_id: Optional[str] = None
+    action: str                         # e.g. disposition, stage_update
+    payload: dict = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=now)

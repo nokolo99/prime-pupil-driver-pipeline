@@ -45,6 +45,25 @@ FACTS = """
 - Benefits, start dates, specific route assignments: NOT in this sheet. Hand off to a recruiter.
 """.strip()
 
+# ---------- Follow-up engine ----------
+# Days since the candidate's last activity -> action. "sms" sends a reminder template;
+# "call" places an AI voice call (until voice ships in increment 5, it falls back to an SMS).
+# Editable per stage; stages without an entry use DEFAULT_FOLLOW_UP.
+DEFAULT_FOLLOW_UP = (
+    [(1, "sms"), (2, "sms"), (4, "sms"), (5, "call"), (7, "sms"), (10, "sms"), (14, "sms"), (15, "call")]
+    + [(d, "call" if i % 2 else "sms") for i, d in enumerate(range(21, 90, 7))]
+)
+FOLLOW_UP_SCHEDULE = {
+    "screening": DEFAULT_FOLLOW_UP,
+}
+GIVE_UP_AFTER_DAYS = 90        # reminders stop; recruiter decides
+QUIET_HOURS = (20, 8)          # no messages or calls from 8pm to 8am local time
+LOCAL_TZ = "America/New_York"  # all depots are in one state
+
+# Days in a stage before the candidate is highlighted as stuck on the dashboard.
+STAGE_SLA_DAYS = {"screening": 3, "background_check": 7, "drug_test": 7, "cdl_permit": 14,
+                  "training": 10, "skills_test": 5, "offer": 3}
+
 # ---------- Deterministic templates for consequential messages ----------
 # Exact wording is fixed (reviewable by legal / HR). Other languages are translated at send time.
 TEMPLATES = {
@@ -63,6 +82,26 @@ TEMPLATES = {
     "handoff": {
         "en": "Good question! I'll have a recruiter get back to you within 1 business day.",
         "es": "¡Buena pregunta! Un reclutador te responderá en 1 día hábil.",
+    },
+    "reminder_1": {
+        "en": "Hi {first_name}, just checking in! You're almost done with your Prime Pupil application. Reply anytime to pick up where you left off.",
+        "es": "¡Hola {first_name}! Solo para recordarte: ya casi terminas tu solicitud con Prime Pupil. Responde cuando puedas para continuar.",
+    },
+    "reminder_2": {
+        "en": "Hi {first_name}, we'd love to keep your application moving. It only takes a few minutes. Reply to continue.",
+        "es": "Hola {first_name}, nos encantaría avanzar con tu solicitud. Solo toma unos minutos. Responde para continuar.",
+    },
+    "reminder_3": {
+        "en": "Hi {first_name}, we still have a school bus driver spot for you. Reply anytime and we'll pick up right where you left off.",
+        "es": "Hola {first_name}, todavía tenemos un puesto de conductor para ti. Responde cuando quieras y seguimos donde lo dejaste.",
+    },
+    "call_fallback": {
+        "en": "Hi {first_name}, we tried to reach you about your Prime Pupil application. Reply here anytime to continue.",
+        "es": "Hola {first_name}, intentamos comunicarnos contigo sobre tu solicitud con Prime Pupil. Responde aquí cuando quieras para continuar.",
+    },
+    "rejected": {
+        "en": "Hi {first_name}, thank you for your interest in driving with Prime Pupil. After review, we're unable to move forward with your application at this time. We wish you the best.",
+        "es": "Hola {first_name}, gracias por tu interés en manejar con Prime Pupil. Después de revisarla, no podemos continuar con tu solicitud en este momento. Te deseamos lo mejor.",
     },
     "error": {
         "en": "Sorry, I had trouble with that. Could you send it again?",

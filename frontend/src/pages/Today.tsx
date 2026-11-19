@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, label, timeAgo, type Candidate, type Event, type Task } from "../api";
+import { TaskActions } from "../components";
 
 export default function Today() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [cands, setCands] = useState<Candidate[]>([]);
 
-  useEffect(() => {
-    const load = () => {
+  const load = () => {
       api<Task[]>("/tasks").then(setTasks);
       api<Event[]>("/events?limit=500").then(setEvents);
       api<Candidate[]>("/candidates").then(setCands);
-    };
+  };
+  useEffect(() => {
     load();
     const t = setInterval(load, 3000);
     return () => clearInterval(t);
@@ -35,7 +36,8 @@ export default function Today() {
               <span className="w-40 font-medium">{name(t.candidate_id)}</span>
               <span className="w-32 text-stone-500">{stage(t.candidate_id)}</span>
               <span className="flex-1">{t.reason}</span>
-              <span className="text-xs text-stone-400">{timeAgo(t.created_at)}</span>
+              <TaskActions task={t} onDone={load} />
+              <span className="w-14 text-right text-xs text-stone-400">{timeAgo(t.created_at)}</span>
             </Link>
           ))}
         </div>
@@ -46,6 +48,7 @@ export default function Today() {
         <div className="rounded-lg border bg-white p-4 text-sm">
           <div className="mb-3 flex flex-wrap gap-6">
             <div><span className="text-2xl font-semibold">{count("message_sent")}</span> <span className="text-stone-500">messages sent</span></div>
+            <div><span className="text-2xl font-semibold">{count("nudge_sent")}</span> <span className="text-stone-500">follow-ups sent</span></div>
             <div><span className="text-2xl font-semibold">{count("screening_answer")}</span> <span className="text-stone-500">answers recorded</span></div>
             <div><span className="text-2xl font-semibold">{count("stage_changed")}</span> <span className="text-stone-500">candidates moved forward</span></div>
           </div>

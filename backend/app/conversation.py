@@ -135,6 +135,7 @@ def _transcript(s: Session, candidate: Candidate) -> list[tuple[str, str]]:
 
 def _handle_screening_turn(s: Session, c: Candidate, body: str) -> None:
     step, sr = screening_step(s, c)
+    step.nudge_count, step.last_nudged_at = 0, None  # candidate is active again: restart follow-ups
     remaining = remaining_questions(sr)
     answered = {f["field"]: getattr(sr, f["field"]) for f in SCREENING_QUESTIONS if getattr(sr, f["field"]) is not None}
 
@@ -206,12 +207,12 @@ def _finish_screening(s: Session, c: Candidate, step: Step, sr: ScreeningResult)
         step.status, step.result = StepStatus.passed, StepResult.pass_
         text, en = template("screening_passed", c.preferred_language)
         log_event(s, c, "screening_completed", Actor.system, result="pass")
-        _advance(s, c, Stage.background_check)
+        advance(s, c, Stage.background_check)
 
     send(s, c, text, en, Sender.system)
 
 
-def _advance(s: Session, c: Candidate, to: Stage) -> None:
+def advance(s: Session, c: Candidate, to: Stage) -> None:
     log_event(s, c, "stage_changed", Actor.system, **{"from": c.stage.value, "to": to.value})
     c.stage, c.stage_entered_at = to, now()
     s.add(Step(candidate_id=c.id, stage=to, status=StepStatus.not_started))
