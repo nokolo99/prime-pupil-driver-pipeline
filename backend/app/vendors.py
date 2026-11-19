@@ -41,3 +41,21 @@ def sample_result_email(order_id: str, first_name: str, last_name: str, clear: b
                  f"Order #: {order_id}\nPackage: DOT Driver (Criminal + MVR)\nOverall status: {status}\n\n"
                  f"Summary: {detail}\n\nLog in to the portal to view the full report.\n\nCheckpoint Screening"),
     }
+
+
+def training_session(candidate_id: int) -> dict:
+    """Stand-in for the Zoom meeting link for the candidate's training cohort."""
+    code = secrets.token_hex(3).upper()
+    return {"link": f"{_base()}/vendor/training/{code}"}
+
+
+def skills_test(candidate_id: int) -> dict:
+    """Real platform: create an assessment invite → returns test ID + candidate link."""
+    test_id = "SK-" + secrets.token_hex(3).upper()
+    return {"test_id": test_id, "link": f"{_base()}/vendor/skills/{test_id}"}
+
+
+def offer_letter(candidate_id: int) -> dict:
+    """Real e-signature provider: create an envelope → returns ID + signing link."""
+    offer_id = "OF-" + secrets.token_hex(3).upper()
+    return {"offer_id": offer_id, "link": f"{_base()}/vendor/offer/{offer_id}"}

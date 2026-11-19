@@ -168,7 +168,7 @@ def force_stage(r: StageReq, s: Session = Depends(get_session)):
             sr.has_cdl_or_permit = bool(sr.has_cdl_or_permit)
             sr.knockout_flags = []
             s.add(sr)
-    if target in (Stage.background_check, Stage.drug_test):
+    if target not in (Stage.screening, Stage.hired):
         for task in s.exec(select(Task).where(Task.candidate_id == c.id, Task.status == TaskStatus.open)).all():
             task.status, task.resolution, task.resolved_at = TaskStatus.resolved, "demo_reset", t
         c.drop_reason = c.drop_note = None
@@ -216,4 +216,53 @@ def vendor_context(phone: str, s: Session = Depends(get_session)):
         if dt:
             out["drug"] = {"case_id": dt.vendor_case_id, "booking_link": dt.booking_link,
                            "appointment_at": dt.appointment_at, "collected": bool(dt.collected_at), "result": dt.result}
+        from ..models import Offer, SkillsTest
+        sk, of = s.get(SkillsTest, st.id), s.get(Offer, st.id)
+        if sk:
+            out["skills"] = {"test_id": sk.test_id, "link": sk.test_link, "result": sk.result, "attempts": sk.attempts}
+        if of:
+            out["offer"] = {"offer_id": of.offer_id, "link": of.sign_link, "signed": bool(of.signed_at), "declined": bool(of.declined_at)}
+    out["candidate_id"] = c.id
     return out
+
+
+
+@router.get("/sample-permit")
+def sample_permit(phone: str, s: Session = Depends(get_session)):
+    """Generates a fake CDL learner's permit photo with this candidate's name (demo only)."""
+    import io
+    from datetime import timedelta
+    from fastapi.responses import Response as R
+    from PIL import Image, ImageDraw
+    from ..models import now
+    c = _find(s, phone)
+    img = Image.new("RGB", (860, 540), (233, 240, 247))
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, 860, 90], fill=(23, 63, 115))
+    d.text((30, 25), "NEW YORK STATE  ·  COMMERCIAL LEARNER PERMIT", fill="white", font_size=30)
+    d.rectangle([30, 120, 250, 400], fill=(190, 200, 210))
+    d.text((80, 250), "PHOTO", fill=(110, 120, 130), font_size=28)
+    lines = [("CLP", "Class B   ·   Endorsements: P, S"), ("NAME", f"{c.last_name.upper()}, {c.first_name.upper()}"),
+             ("ID NO", f"CLP-{c.id:03d}-{c.phone[-4:]}-77"), ("DOB", "01/01/1980"),
+             ("ISSUED", now().strftime("%m/%d/%Y")), ("EXPIRES", (now() + timedelta(days=180)).strftime("%m/%d/%Y"))]
+    for i, (k, v) in enumerate(lines):
+        d.text((290, 125 + i * 48), k, fill=(90, 100, 110), font_size=18)
+        d.text((400, 120 + i * 48), v, fill=(20, 20, 20), font_size=28)
+    d.text((30, 470), "SAMPLE FOR PROTOTYPE DEMO · NOT A REAL DOCUMENT", fill=(160, 40, 40), font_size=20)
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    return R(buf.getvalue(), media_type="image/png")
+
+
+@router.post("/send-sample-permit")
+def send_sample_permit(r: CandidateReq, s: Session = Depends(get_session)):
+    from ..models import Channel, Message
+    from ..stages import permit_photo_received
+    c = _find(s, r.phone)
+    if c.stage.value != "cdl_permit":
+        from fastapi import HTTPException
+        raise HTTPException(400, "Candidate isn't at the CDL permit step.")
+    png = sample_permit(r.phone, s).body
+    s.add(Message(candidate_id=c.id, direction="in", channel=Channel.web, sender="candidate", body="[photo]"))
+    permit_photo_received(s, c, png, "image/png")
+    return {"ok": True}

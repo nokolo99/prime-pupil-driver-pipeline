@@ -56,9 +56,11 @@ def _say_and_hangup(text: str, lang: str = "en") -> Response:
     return _xml(str(vr))
 
 
-VOICE_STAGES = (Stage.screening, Stage.background_check, Stage.drug_test)
-STEP_NAMES = {"en": {Stage.background_check: "your background check form", Stage.drug_test: "your drug test"},
-              "es": {Stage.background_check: "tu formulario de antecedentes", Stage.drug_test: "tu prueba de drogas"}}
+VOICE_STAGES = (Stage.screening, Stage.background_check, Stage.drug_test, Stage.cdl_permit, Stage.skills_test, Stage.offer)
+STEP_NAMES = {"en": {Stage.background_check: "your background check form", Stage.drug_test: "your drug test",
+                     Stage.cdl_permit: "your CDL learner's permit", Stage.skills_test: "your skills test", Stage.offer: "your job offer"},
+              "es": {Stage.background_check: "tu formulario de antecedentes", Stage.drug_test: "tu prueba de drogas",
+                     Stage.cdl_permit: "tu permiso de aprendiz CDL", Stage.skills_test: "tu examen de habilidades", Stage.offer: "tu oferta de trabajo"}}
 
 
 def _relay_twiml(s: Session, c: Candidate, greeting_key: str) -> Response:

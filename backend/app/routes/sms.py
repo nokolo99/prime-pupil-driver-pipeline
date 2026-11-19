@@ -32,6 +32,18 @@ async def inbound(request: Request, s: Session = Depends(get_session)):
         log.info("SMS from unknown number %s: %r", phone, body[:60])
         return Response(EMPTY_TWIML, media_type="application/xml")
 
+    if int(form.get("NumMedia", "0") or 0) > 0 and c.stage.value == "cdl_permit":
+        # Permit photo (picture message). Download from Twilio and hand to the permit check.
+        import os
+        import httpx2 as httpx
+        from ..stages import permit_photo_received
+        from ..models import Message as Msg
+        url, mtype = form.get("MediaUrl0"), form.get("MediaContentType0", "image/jpeg")
+        data = httpx.get(url, auth=(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"]), follow_redirects=True).content
+        s.add(Msg(candidate_id=c.id, direction="in", channel=Channel.sms, sender="candidate", body=body or "[photo]"))
+        permit_photo_received(s, c, data, mtype)
+        return Response(EMPTY_TWIML, media_type="application/xml")
+
     word = body.lower().strip(" .!")
     if word in STOP_WORDS:
         s.add(Message(candidate_id=c.id, direction="in", channel=Channel.sms, sender="candidate", body=body))

@@ -52,9 +52,18 @@ export function TaskActions({ task, onDone }: { task: Task; onDone: () => void }
         <button disabled={busy} className={btn} onClick={() => act("extend")}>Keep following up</button>
         <button disabled={busy} className={btn} onClick={() => setPicking("mark_dropped")}>Mark dropped</button>
       </>}
-      {task.type === "candidate_withdrawing" &&
+      {["candidate_withdrawing", "offer_declined"].includes(task.type) &&
         <button disabled={busy} className={btn} onClick={() => setPicking("mark_dropped")}>Mark dropped</button>}
-      {!["review_knockout", "review_background_flag", "review_drug_result", "candidate_unresponsive", "candidate_withdrawing"].includes(task.type) &&
+      {task.type === "review_permit" && <>
+        <button disabled={busy} className={`${btn} border-emerald-600 text-emerald-800`} onClick={() => act("verify_permit")}>Verify permit</button>
+        <button disabled={busy} className={btn} onClick={() => act("request_new_photo")}>Request new photo</button>
+      </>}
+      {task.type === "review_skills_test" && <>
+        <button disabled={busy} className={`${btn} border-emerald-600 text-emerald-800`} onClick={() => act("allow_retest")}>Allow retest</button>
+        <button disabled={busy} className={`${btn} border-rose-400 text-rose-700`} onClick={() => setPicking("reject")}>Reject</button>
+      </>}
+      {!["review_knockout", "review_background_flag", "review_drug_result", "candidate_unresponsive", "candidate_withdrawing",
+         "offer_declined", "review_permit", "review_skills_test"].includes(task.type) &&
         <button disabled={busy} className={btn} onClick={() => act("dismiss")}>Dismiss</button>}
     </div>
   );

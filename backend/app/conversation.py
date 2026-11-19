@@ -134,7 +134,7 @@ def handle_inbound(s: Session, candidate: Candidate, body: str, channel: Channel
         s.commit()
         return
 
-    if candidate.stage in (Stage.background_check, Stage.drug_test) and candidate.status != CandidateStatus.needs_review:
+    if candidate.stage in ASSISTED_STAGES and candidate.status != CandidateStatus.needs_review:
         _handle_stage_turn(s, candidate, body, channel)
         s.commit()
         return
@@ -239,6 +239,9 @@ def _finish_screening(s: Session, c: Candidate, step: Step, sr: ScreeningResult,
 
 # ---------- After screening: stage-aware help ----------
 
+ASSISTED_STAGES = (Stage.background_check, Stage.drug_test, Stage.cdl_permit, Stage.training, Stage.skills_test, Stage.offer)
+
+
 def step_facts(s: Session, c: Candidate) -> dict:
     """What the assistant may tell the candidate about their current step."""
     from .models import BackgroundCheck, Clinic, DrugTest
@@ -259,6 +262,25 @@ def step_facts(s: Session, c: Candidate) -> dict:
                 "nearby_clinics": [f"{cl.name}, {cl.address} ({cl.hours})" for cl in nearby_clinics(s, c)],
                 "appointment": f"{clinic.name}, {fmt_when(dt.appointment_at)}" if dt.appointment_at else None,
                 "sample_collected": bool(dt.collected_at)}
+    from .config import DMV_PERMIT_LINK
+    from .models import Offer, PermitCheck, SkillsTest, Training
+    if c.stage == Stage.cdl_permit:
+        pc = s.get(PermitCheck, step.id)
+        return {"what": "CDL learner's permit (Class B). Candidate books and takes the written knowledge test at the DMV, "
+                        "then texts us a photo of the permit. Bring ID and proof of residency to the DMV; a small DMV fee applies.",
+                "dmv_link": DMV_PERMIT_LINK, "photo_received": bool(pc and pc.received_at),
+                "how_to_send_proof": "Text a clear photo of the front of the permit to this number."}
+    if c.stage == Stage.training:
+        tr = s.get(Training, step.id)
+        return {"what": "Paid CDL training over Zoom, about 1 week. Paid at the training rate in the facts.",
+                "starts": fmt_when(tr.cohort_start), "zoom_link": tr.session_link}
+    if c.stage == Stage.skills_test:
+        st = s.get(SkillsTest, step.id)
+        return {"what": "CDL skills assessment on an online platform; results come to Prime Pupil automatically.",
+                "test_link": st.test_link, "attempt": st.attempts}
+    if c.stage == Stage.offer:
+        o = s.get(Offer, step.id)
+        return {"what": "Job offer, signed electronically.", "sign_link": o.sign_link, "terms": o.terms}
     return {}
 
 

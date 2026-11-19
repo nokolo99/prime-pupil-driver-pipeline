@@ -265,3 +265,43 @@ class WorkdayOutbox(SQLModel, table=True):
     action: str                         # e.g. disposition, stage_update
     payload: dict = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=now)
+
+
+# ---------- Later-stage details (1:1 with Step) ----------
+
+class PermitCheck(SQLModel, table=True):
+    step_id: int = Field(foreign_key="step.id", primary_key=True)
+    image_path: Optional[str] = None
+    extracted: dict = Field(default_factory=dict, sa_column=Column(JSON))  # what Claude read off the photo
+    mismatches: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    received_at: Optional[datetime] = None
+    verified_at: Optional[datetime] = None
+
+
+class Training(SQLModel, table=True):
+    step_id: int = Field(foreign_key="step.id", primary_key=True)
+    cohort_start: Optional[datetime] = None
+    session_link: Optional[str] = None
+    reminded_day_before: bool = False
+    reminded_morning_of: bool = False
+    completed_at: Optional[datetime] = None
+
+
+class SkillsTest(SQLModel, table=True):
+    step_id: int = Field(foreign_key="step.id", primary_key=True)
+    test_id: Optional[str] = None
+    test_link: Optional[str] = None
+    attempts: int = 0
+    result: Optional[str] = None      # pass / fail
+    score: Optional[int] = None
+    result_received_at: Optional[datetime] = None
+
+
+class Offer(SQLModel, table=True):
+    step_id: int = Field(foreign_key="step.id", primary_key=True)
+    offer_id: Optional[str] = None
+    sign_link: Optional[str] = None
+    terms: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    sent_at: Optional[datetime] = None
+    signed_at: Optional[datetime] = None
+    declined_at: Optional[datetime] = None

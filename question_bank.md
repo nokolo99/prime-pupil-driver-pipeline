@@ -33,3 +33,7 @@ S6. Have you tried fixing this before? What didn't work?
 15. What do recruiters ask in screening today, and which answers disqualify someone automatically versus needing judgment?
 16. (Optional) Do career-page applications land directly in Workday Recruiting? (Assumed yes, since the brief says the process runs on Workday.)
 17. Drug test: do candidates book a clinic appointment through your vendor, or walk in with the authorization? (Assumed: the vendor integration tells us when an appointment is booked.)
+18. How do you verify the CDL learner's permit today? Who does it, what do they check (name, class, expiration, endorsements), and against what (the physical card, DMV lookup)?
+19. When a background check needs review, who handles the required candidate notices (pre-adverse / adverse action) today? Does the vendor do it?
+20. Do drug test results arrive already verified by a Medical Review Officer, or raw lab results?
+21. If a vendor is slow to return results, who chases them today?

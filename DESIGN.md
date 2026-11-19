@@ -105,7 +105,7 @@ We mapped what we *could* build for each of the 5 stages plus the recruiter side
 | 4 | Background check + drug test ✅ | 1 | Mock BG vendor (auto-order, email results parsed); clinic finder, reminders, no-show, mock drug-test webhook; overdue alerts; failures → review |
 | 5 | Voice | 1 | Phone screening, EN/ES |
 | 6 | Workday mock connector | 2 | Stage changes sync to mock Workday |
-| 7 | Stages 4–5 (thin) | 2 | Permit nudges, Zoom link, skills-test webhook, auto offer + e-sign |
+| 7 | Stages 4–5 ✅ | 2 | Permit nudges, Zoom link, skills-test webhook, auto offer + e-sign |
 | 8 | Real-time + takeover + VP metrics | 2 | Dashboard auto-refreshes; recruiter can reply; funnel view |
 | 9 | Deploy + demo data | — | Hosted, seeded with realistic candidates |
 | 10 | UI polish | — | Visual cleanup across all screens (deliberately last) |
@@ -402,6 +402,10 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | BG results arrive as emails parsed by Claude (demo: one-click sample email; prod: inbound-email webhook matched by order ID) | Matches John: results come by email |
 | 11-19 | Drug test: vendor integration reports booked appointment, collection, no-show, result | John: vendor offers an integration; booking assumed (Q17) |
 | 11-19 | Overdue results (5 days) are an FYI flag to the recruiter, not a required action | Visibility without adding work (to revisit) |
+| 11-19 | Permit proof: candidate texts a photo; Claude reads it (name, number, class, expiry) and flags mismatches; recruiter verifies with one click, at upload (before paid training) | Catches problems before Prime Pupil pays for training; how they verify today is an open question (Q18) |
+| 11-19 | Training: weekly cohort (next Monday), Zoom link + session reminders; trainer marks complete | No info on completion tracking; Zoom attendance integration is the production story |
+| 11-19 | Skills test via mock platform webhook; fail → recruiter review (retest or reject) | John: platform offers an integration |
+| 11-19 | Offer auto-generated from template (placeholder terms), mock e-sign; signed → hired, synced to Workday | John: offers can go out automatically |
 | 11-19 | Voice turns use Claude Haiku 5.5 (SMS stays on Sonnet 5.5); 0.5s merge window for split utterances | Live calls need ~2s replies; code still makes every decision, so the smaller model is safe |
 | 11-19 | Voice both outbound (follow-up calls, "call me now") and inbound | One conversation brain across SMS, voice, and simulator |
 | 11-19 | Unknown inbound callers get a polite close (no DRIVE prompt) | Applications come through Workday |

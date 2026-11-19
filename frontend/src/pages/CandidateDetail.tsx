@@ -9,7 +9,16 @@ type Detail = {
   steps: { stage: string; flag_note: string | null; nudge_count: number }[];
   background_check: Record<string, string | null> | null;
   drug_test: Record<string, string | number | null> | null;
+  later: {
+    permit?: { image_path: string | null; extracted: Record<string, string | boolean | null>; mismatches: string[]; received_at: string | null; verified_at: string | null };
+    training?: { cohort_start: string; completed_at: string | null; session_link: string };
+    skills_test?: { test_id: string; attempts: number; result: string | null; score: number | null };
+    offer?: { offer_id: string; terms: Record<string, string>; signed_at: string | null; declined_at: string | null };
+  };
 };
+const Row = ({ k, v }: { k: string; v: unknown }) => (
+  <div className="flex justify-between gap-4 border-b px-3 py-1.5 last:border-0"><span className="text-stone-500">{k}</span><span className="text-right font-medium">{v === null || v === undefined || v === "" ? "—" : String(v)}</span></div>
+);
 
 const SCREENING_LABELS: Record<string, string> = {
   is_21_plus: "21 or older", has_valid_license: "Valid license", years_licensed: "Years licensed",
@@ -107,6 +116,45 @@ export default function CandidateDetail() {
                 ["Result", d.drug_test.result ? label(String(d.drug_test.result)) : "—"]] as [string, string | number | null][]).map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-4 border-b px-3 py-1.5 last:border-0"><span className="text-stone-500">{k}</span><span className="text-right font-medium">{v ?? "—"}</span></div>
               ))}
+            </div>
+          </section>}
+
+          {d.later.permit && <section>
+            <h3 className="mb-2 font-semibold">CDL permit</h3>
+            <div className="rounded-lg border bg-white text-sm">
+              {d.later.permit.image_path && <a href={`/api/sim/media/${d.later.permit.image_path}`} target="_blank" rel="noreferrer"><img src={`/api/sim/media/${d.later.permit.image_path}`} className="max-h-40 w-full object-contain p-2" /></a>}
+              {d.later.permit.mismatches.length > 0
+                ? <div className="bg-rose-50 px-3 py-1.5 text-rose-800">⚠ {d.later.permit.mismatches.join("; ")}</div>
+                : d.later.permit.received_at && <div className="bg-emerald-50 px-3 py-1.5 text-emerald-800">✓ Details match the candidate</div>}
+              <Row k="Name on permit" v={d.later.permit.extracted.name} /><Row k="Permit #" v={d.later.permit.extracted.permit_number} />
+              <Row k="Class" v={d.later.permit.extracted.license_class} /><Row k="Expires" v={d.later.permit.extracted.expiration_date} />
+              <Row k="Verified" v={d.later.permit.verified_at ? asDate(d.later.permit.verified_at).toLocaleString() : d.later.permit.received_at ? "Awaiting recruiter" : "No photo yet"} />
+            </div>
+          </section>}
+
+          {d.later.training && <section>
+            <h3 className="mb-2 font-semibold">Training</h3>
+            <div className="rounded-lg border bg-white text-sm">
+              <Row k="Cohort starts" v={asDate(d.later.training.cohort_start).toLocaleString()} />
+              <Row k="Completed" v={d.later.training.completed_at ? asDate(d.later.training.completed_at).toLocaleString() : "Not yet"} />
+              {c.stage === "training" && <div className="p-2"><button className="rounded border border-emerald-600 px-2 py-1 text-xs text-emerald-800 hover:bg-emerald-50"
+                onClick={() => api(`/tasks/training/${c.id}/complete`, { method: "POST" }).then(() => api<Detail>(`/candidates/${id}`).then(setD))}>Mark training complete</button></div>}
+            </div>
+          </section>}
+
+          {d.later.skills_test && <section>
+            <h3 className="mb-2 font-semibold">Skills test</h3>
+            <div className="rounded-lg border bg-white text-sm">
+              <Row k="Test" v={d.later.skills_test.test_id} /><Row k="Attempt" v={d.later.skills_test.attempts} />
+              <Row k="Result" v={d.later.skills_test.result ? `${label(d.later.skills_test.result)} (${d.later.skills_test.score})` : "—"} />
+            </div>
+          </section>}
+
+          {d.later.offer && <section>
+            <h3 className="mb-2 font-semibold">Offer</h3>
+            <div className="rounded-lg border bg-white text-sm">
+              {Object.entries(d.later.offer.terms).map(([k, v]) => <Row key={k} k={label(k)} v={v} />)}
+              <Row k="Status" v={d.later.offer.signed_at ? `Signed ${asDate(d.later.offer.signed_at).toLocaleString()}` : d.later.offer.declined_at ? "Declined" : "Sent, awaiting signature"} />
             </div>
           </section>}
 

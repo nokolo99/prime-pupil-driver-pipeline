@@ -146,3 +146,67 @@ def drug_webhook(e: DrugEventIn, s: Session = Depends(get_session)):
     if not c:
         raise HTTPException(404, "Unknown case")
     return {"ok": True}
+
+
+# ---------- Training (Zoom stand-in), skills test platform, offer e-signature ----------
+
+from ..models import Offer, SkillsTest, Training  # noqa: E402
+
+
+@router.get("/vendor/training/{code}", response_class=HTMLResponse)
+def training_page(code: str, s: Session = Depends(get_session)):
+    tr = s.exec(select(Training).where(Training.session_link.endswith(code))).first()
+    if not tr:
+        raise HTTPException(404, "Session not found")
+    return _page("CDL training", "Zoom (demo)", "#2563eb",
+                 f'<div class="card"><h2>Prime Pupil paid CDL training</h2><p>Cohort starts {stages.fmt_when(tr.cohort_start)}.</p>'
+                 '<p>In production this link opens the Zoom meeting.</p></div>')
+
+
+@router.get("/vendor/skills/{test_id}", response_class=HTMLResponse)
+def skills_page(test_id: str, s: Session = Depends(get_session)):
+    st = s.exec(select(SkillsTest).where(SkillsTest.test_id == test_id)).first()
+    if not st:
+        raise HTTPException(404, "Test not found")
+    return _page("Skills test", "DriveAssess (demo)", "#7c3aed",
+                 f'<div class="card"><h2>CDL skills assessment</h2><p>Test {test_id} · attempt {st.attempts}</p>'
+                 '<p>In production the candidate takes the assessment here; the platform sends the result to Prime Pupil automatically.</p></div>')
+
+
+class SkillsResultIn(BaseModel):
+    test_id: str
+    result: Literal["pass", "fail"]
+    score: Optional[int] = None
+
+
+@router.post("/api/integrations/skills-platform/webhook")
+def skills_webhook(e: SkillsResultIn, s: Session = Depends(get_session)):
+    c = stages.skills_result(s, e.test_id, e.result, e.score)
+    if not c:
+        raise HTTPException(404, "Unknown test")
+    return {"ok": True}
+
+
+@router.get("/vendor/offer/{offer_id}", response_class=HTMLResponse)
+def offer_page(offer_id: str, s: Session = Depends(get_session)):
+    o = s.exec(select(Offer).where(Offer.offer_id == offer_id)).first()
+    if not o:
+        raise HTTPException(404, "Offer not found")
+    c = s.get(Candidate, s.get(Step, o.step_id).candidate_id)
+    if o.signed_at:
+        return _page("Signed", "SignDesk (demo)", "#15803d", '<div class="card"><h2>Signed ✓</h2><p>Welcome to Prime Pupil! Your recruiter will be in touch with your start details.</p></div>')
+    if o.declined_at:
+        return _page("Declined", "SignDesk (demo)", "#15803d", '<div class="card"><h2>Offer declined</h2><p>Your recruiter will follow up.</p></div>')
+    rows = "".join(f"<tr><td style='color:#78716c;padding:4px 8px 4px 0'>{html.escape(k.replace('_', ' ').title())}</td><td>{html.escape(str(v))}</td></tr>" for k, v in o.terms.items())
+    return _page("Your offer", "SignDesk (demo)", "#15803d", f"""
+<div class="card"><h2>Offer of employment</h2><p>Dear {html.escape(c.first_name)}, Prime Pupil Transportation is pleased to offer you the following position:</p>
+<table>{rows}</table><p class="note">Placeholder terms for the prototype.</p>
+<form method="post"><input type="hidden" name="decision" value="sign"><label>Type your full name to sign</label><input name="signature" required value="{html.escape(c.first_name + ' ' + c.last_name)}">
+<button type="submit">Sign offer</button></form>
+<form method="post"><input type="hidden" name="decision" value="decline"><button type="submit" style="background:#a8a29e">Decline</button></form></div>""")
+
+
+@router.post("/vendor/offer/{offer_id}", response_class=HTMLResponse)
+def offer_submit(offer_id: str, decision: str = Form(...), s: Session = Depends(get_session)):
+    stages.offer_response(s, offer_id, signed=(decision == "sign"))
+    return offer_page(offer_id, s)

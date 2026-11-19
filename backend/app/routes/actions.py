@@ -24,12 +24,16 @@ ALLOWED = {
     "review_drug_result": {"approve", "reject"},
     "candidate_unresponsive": {"mark_dropped", "extend"},
     "candidate_withdrawing": {"mark_dropped"},
+    "review_permit": {"verify_permit", "request_new_photo"},
+    "review_skills_test": {"allow_retest", "reject"},
+    "offer_declined": {"mark_dropped"},
 }
 DEFAULT_ACTIONS = {"dismiss"}
 
 
 class ActionIn(BaseModel):
-    action: Literal["approve", "reject", "mark_dropped", "extend", "dismiss"]
+    action: Literal["approve", "reject", "mark_dropped", "extend", "dismiss",
+                    "verify_permit", "request_new_photo", "allow_retest"]
     reason: Optional[DropReason] = None
     note: Optional[str] = None
     recruiter_id: Optional[int] = None
@@ -61,7 +65,7 @@ def act(task_id: int, a: ActionIn, s: Session = Depends(get_session)):
         advance(s, c, NEXT_STAGE[reviewed])
 
     elif a.action == "reject":
-        default = {"review_background_flag": DropReason.failed_background_check,
+        default = {"review_skills_test": DropReason.other, "review_background_flag": DropReason.failed_background_check,
                    "review_drug_result": DropReason.failed_drug_test}.get(task.type, DropReason.failed_knockout)
         reason = a.reason or default
         c.status, c.drop_reason, c.drop_note = CandidateStatus.rejected, reason, a.note
@@ -83,9 +87,30 @@ def act(task_id: int, a: ActionIn, s: Session = Depends(get_session)):
         step.started_at = now()
         log_event(s, c, "recruiter_extended_follow_up", Actor.recruiter, actor_id=rid)
 
+    elif a.action in ("verify_permit", "request_new_photo"):
+        from ..stages import permit_decision
+        permit_decision(s, c, verified=(a.action == "verify_permit"))
+
+    elif a.action == "allow_retest":
+        from ..stages import allow_retest
+        allow_retest(s, c)
+
     else:
         log_event(s, c, "task_dismissed", Actor.recruiter, actor_id=rid, task_type=task.type)
 
     task.status, task.resolution, task.resolved_by, task.resolved_at = TaskStatus.resolved, a.action, rid, now()
+    s.commit()
+    return {"ok": True}
+
+
+
+@router.post("/training/{candidate_id}/complete", tags=["recruiter actions"])
+def training_complete(candidate_id: int, s: Session = Depends(get_session)):
+    """Trainer/recruiter marks the training cohort complete (prod: Zoom attendance / LMS integration)."""
+    from ..stages import training_completed
+    c = s.get(Candidate, candidate_id)
+    if not c or c.stage != Stage.training:
+        raise HTTPException(400, "Candidate is not in training")
+    training_completed(s, c, by=c.recruiter_id)
     s.commit()
     return {"ok": True}

@@ -59,7 +59,16 @@ FOLLOW_UP_SCHEDULE = {
     "screening": DEFAULT_FOLLOW_UP,
     "background_check": DEFAULT_FOLLOW_UP,  # nudging to finish the vendor form (John's #1 holdup)
     "drug_test": DEFAULT_FOLLOW_UP,         # nudging to book / go to the clinic (biggest drop-off)
+    "cdl_permit": DEFAULT_FOLLOW_UP,        # John: last 1-2 weeks are spent waiting on permits
+    "skills_test": DEFAULT_FOLLOW_UP,
+    "offer": DEFAULT_FOLLOW_UP,             # nudging to sign
 }
+
+# ---------- Later stages (ASSUMED placeholders) ----------
+DMV_PERMIT_LINK = "https://dmv.ny.gov/commercial-drivers/get-commercial-learner-permit-clp"  # one state; NY assumed
+TRAINING_WEEKDAY, TRAINING_HOUR = 0, 10     # weekly cohort: Mondays 10am local
+OFFER_TERMS = {"title": "School Bus Driver", "pay_rate": "$24.00/hour", "schedule": "Split shift, school year",
+               "start": "the Monday after you sign"}
 # Vendor turnaround before results are flagged as overdue (FYI to recruiter, no action required).
 RESULTS_OVERDUE_DAYS = {"background_check": 5, "drug_test": 5}
 GIVE_UP_AFTER_DAYS = 90        # reminders stop; recruiter decides
@@ -187,6 +196,58 @@ TEMPLATES = {
     "drug_negative": {
         "en": "Great news {first_name}, you passed your drug test! Next step: your CDL learner's permit. We'll send details shortly.",
         "es": "¡Buenas noticias {first_name}, pasaste tu prueba de drogas! Siguiente paso: tu permiso de aprendiz CDL. Te enviaremos los detalles pronto.",
+    },
+    "permit_start": {
+        "en": "Next step: your CDL learner's permit. Book your DMV knowledge test here: {link} Once you have it, just text us a photo of your permit.",
+        "es": "Siguiente paso: tu permiso de aprendiz CDL. Reserva tu examen en el DMV aquí: {link} Cuando lo tengas, mándanos una foto de tu permiso por mensaje.",
+    },
+    "permit_reminder": {
+        "en": "Hi {first_name}, the CDL learner's permit is your next step. Book your DMV test here: {link} Text us a photo once you have it!",
+        "es": "Hola {first_name}, el permiso de aprendiz CDL es tu siguiente paso. Reserva tu examen del DMV aquí: {link} ¡Mándanos una foto cuando lo tengas!",
+    },
+    "permit_received": {
+        "en": "Got your permit photo, thanks {first_name}! A recruiter will confirm it shortly.",
+        "es": "¡Recibimos la foto de tu permiso, gracias {first_name}! Un reclutador lo confirmará en breve.",
+    },
+    "permit_new_photo": {
+        "en": "Hi {first_name}, we couldn't confirm your permit from that photo. Could you text a clear photo of the front of your CDL learner's permit?",
+        "es": "Hola {first_name}, no pudimos confirmar tu permiso con esa foto. ¿Puedes mandar una foto clara del frente de tu permiso de aprendiz CDL?",
+    },
+    "training_start": {
+        "en": "Your permit is confirmed! Next step: paid CDL training on Zoom, starting {when}. Join here: {link}",
+        "es": "¡Tu permiso está confirmado! Siguiente paso: entrenamiento CDL pagado por Zoom, empieza {when}. Únete aquí: {link}",
+    },
+    "training_day_before": {
+        "en": "Reminder: your paid CDL training starts tomorrow, {when}. Join here: {link}",
+        "es": "Recordatorio: tu entrenamiento CDL pagado empieza mañana, {when}. Únete aquí: {link}",
+    },
+    "training_morning_of": {
+        "en": "Training starts today at {time}! Join on Zoom here: {link}",
+        "es": "¡El entrenamiento empieza hoy a las {time}! Únete por Zoom aquí: {link}",
+    },
+    "skills_start": {
+        "en": "Training complete, great work {first_name}! Last step before your offer: the CDL skills test. Start here: {link}",
+        "es": "¡Terminaste el entrenamiento, buen trabajo {first_name}! Último paso antes de tu oferta: el examen de habilidades CDL. Empieza aquí: {link}",
+    },
+    "skills_reminder": {
+        "en": "Hi {first_name}, you're one step from your offer! Take your CDL skills test here: {link}",
+        "es": "Hola {first_name}, ¡estás a un paso de tu oferta! Haz tu examen de habilidades CDL aquí: {link}",
+    },
+    "skills_retest": {
+        "en": "Hi {first_name}, you're cleared for another try at the skills test. Take it here when you're ready: {link}",
+        "es": "Hola {first_name}, puedes intentar otra vez el examen de habilidades. Hazlo aquí cuando estés listo: {link}",
+    },
+    "offer_start": {
+        "en": "Congratulations {first_name}! You passed your skills test, and we'd love to have you drive with Prime Pupil. Review and sign your offer here: {link}",
+        "es": "¡Felicidades {first_name}! Pasaste tu examen de habilidades y queremos que manejes con Prime Pupil. Revisa y firma tu oferta aquí: {link}",
+    },
+    "offer_reminder": {
+        "en": "Hi {first_name}, your Prime Pupil driver offer is waiting for you. Review and sign here: {link}",
+        "es": "Hola {first_name}, tu oferta de conductor con Prime Pupil te está esperando. Revísala y fírmala aquí: {link}",
+    },
+    "hired": {
+        "en": "Welcome to Prime Pupil, {first_name}! Your offer is signed. Your recruiter will reach out with your start details and route.",
+        "es": "¡Bienvenido a Prime Pupil, {first_name}! Tu oferta está firmada. Tu reclutador te contactará con los detalles de inicio y tu ruta.",
     },
     "voice_greeting_stage": {
         "en": "Hi {first_name}! I'm Prime Pupil's automated recruiting assistant, calling about your next step: {step}. Do you have a minute?",

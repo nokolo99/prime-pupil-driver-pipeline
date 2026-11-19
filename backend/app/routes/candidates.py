@@ -28,12 +28,24 @@ def get_candidate(candidate_id: int, session: Session = Depends(get_session)):
         "screening": session.get(ScreeningResult, screening_step.id) if screening_step else None,
         "background_check": next((session.get(BackgroundCheck, st.id) for st in steps if st.stage == Stage.background_check), None),
         "drug_test": _drug_detail(session, steps),
+        "later": _later_details(session, steps),
         "messages": session.exec(select(Message).where(Message.candidate_id == candidate_id)
                                  .order_by(Message.created_at)).all(),
         "events": session.exec(select(Event).where(Event.candidate_id == candidate_id)
                                .order_by(Event.created_at)).all(),
         "tasks": session.exec(select(Task).where(Task.candidate_id == candidate_id)).all(),
     }
+
+
+def _later_details(session: Session, steps):
+    from ..models import Offer, PermitCheck, SkillsTest, Training
+    out = {}
+    for st in steps:
+        for key, model in (("permit", PermitCheck), ("training", Training), ("skills_test", SkillsTest), ("offer", Offer)):
+            row = session.get(model, st.id)
+            if row:
+                out[key] = row.model_dump()
+    return out
 
 
 def _drug_detail(session: Session, steps):

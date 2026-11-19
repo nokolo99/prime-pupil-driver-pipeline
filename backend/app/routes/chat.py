@@ -1,6 +1,7 @@
 """Browser phone simulator: stands in for SMS until Twilio is plugged in (increment 3)."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -40,3 +41,28 @@ def inbound(m: Inbound, session: Session = Depends(get_session)):
         raise HTTPException(404, "No applicant with this phone. Submit a Workday application first.")
     handle_inbound(session, c, m.body, Channel.web)
     return {"ok": True}
+
+
+
+@router.post("/inbound-photo")
+async def inbound_photo(phone: str = Form(...), photo: UploadFile = File(...), session: Session = Depends(get_session)):
+    """Simulator stand-in for a picture message (MMS)."""
+    from ..stages import permit_photo_received
+    c = _by_phone(session, phone)
+    if not c:
+        raise HTTPException(404, "No applicant with this phone.")
+    session.add(Message(candidate_id=c.id, direction="in", channel=Channel.web, sender="candidate", body="[photo]"))
+    if c.stage.value != "cdl_permit":
+        session.commit()
+        return {"ok": True, "note": "Photo received, but no step needs a photo right now."}
+    permit_photo_received(session, c, await photo.read(), photo.content_type or "image/jpeg")
+    return {"ok": True}
+
+
+@router.get("/media/{name}")
+def media(name: str):
+    from ..stages import UPLOADS
+    path = (UPLOADS / name).resolve()
+    if path.parent != UPLOADS.resolve() or not path.exists():
+        raise HTTPException(404)
+    return FileResponse(path)

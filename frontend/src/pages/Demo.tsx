@@ -53,7 +53,10 @@ export default function Demo() {
   type Email = { from: string; subject: string; body: string };
   type VCtx = { stage: string; status: string;
     bg: null | { order_id: string; form_link: string; form_completed: boolean; report_status: string; email_clear: Email; email_flagged: Email };
-    drug: null | { case_id: string; booking_link: string; appointment_at: string | null; collected: boolean; result: string | null } };
+    drug: null | { case_id: string; booking_link: string; appointment_at: string | null; collected: boolean; result: string | null };
+    skills?: { test_id: string; link: string; result: string | null; attempts: number };
+    offer?: { offer_id: string; link: string; signed: boolean; declined: boolean };
+    candidate_id?: number };
   const [vctx, setVctx] = useState<VCtx | null>(null);
   const [email, setEmail] = useState<Email | null>(null);
   useEffect(() => {
@@ -74,6 +77,16 @@ export default function Demo() {
     if (!vctx?.drug) return;
     try { await api("/integrations/drug-vendor/webhook", { method: "POST", body: JSON.stringify({ case_id: vctx.drug.case_id, event, result }) }); setNote(`Drug test vendor: ${label(event)}${result ? ` (${result})` : ""}`); }
     catch (err) { setNote(`⚠ ${(err as Error).message}`); }
+  }
+
+  async function later(path: string, body: object, msg: string) {
+    try { await api(path, { method: "POST", body: JSON.stringify(body) }); setNote(msg); }
+    catch (err) { setNote(`⚠ ${(err as Error).message}`); }
+  }
+  async function uploadPhoto(f: File) {
+    const fd = new FormData(); fd.append("phone", phone); fd.append("photo", f);
+    const r = await fetch("/api/sim/inbound-photo", { method: "POST", body: fd });
+    setNote(r.ok ? "Photo sent from the candidate's phone." : `⚠ ${await r.text()}`);
   }
 
   async function resetClock() { await api("/demo/clock/reset", { method: "POST" }); setNote("Clock reset to real time."); }
@@ -156,6 +169,15 @@ export default function Demo() {
             <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => drugEvent("result", "negative")}>Result: negative</button>
             <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => drugEvent("result", "non_negative")}>Result: non-negative</button>
           </div>}
+          <div className="pt-2 font-medium">CDL permit → training → skills test → offer</div>
+          <div className="flex flex-wrap gap-2">
+            <button disabled={vctx?.stage !== "cdl_permit"} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later("/demo/send-sample-permit", { phone }, "Sample permit photo sent. Claude is reading it…")}>Send sample permit photo</button>
+            <a className="rounded border px-2 py-1 hover:bg-stone-100" href={`/api/demo/sample-permit?phone=${encodeURIComponent(phone)}`} target="_blank" rel="noreferrer">View sample permit ↗</a>
+            <button disabled={vctx?.stage !== "training"} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later(`/tasks/training/${vctx?.candidate_id}/complete`, {}, "Trainer marked training complete.")}>Training complete</button>
+            <button disabled={!vctx?.skills || vctx.stage !== "skills_test"} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later("/integrations/skills-platform/webhook", { test_id: vctx?.skills?.test_id, result: "pass", score: 91 }, "Skills platform: PASS (91)")}>Skills test: pass</button>
+            <button disabled={!vctx?.skills || vctx.stage !== "skills_test"} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later("/integrations/skills-platform/webhook", { test_id: vctx?.skills?.test_id, result: "fail", score: 62 }, "Skills platform: FAIL (62)")}>Skills test: fail</button>
+            {vctx?.offer && <a className="rounded border px-2 py-1 hover:bg-stone-100" href={vctx.offer.link} target="_blank" rel="noreferrer">Open offer ↗</a>}
+          </div>
         </div>
 
         <h2 className="pt-4 text-lg font-semibold">Candidate controls</h2>
@@ -195,6 +217,7 @@ export default function Demo() {
           </div>
           <div className="flex gap-1 border-t p-2">
             <input className="flex-1 rounded-full border px-3 py-1 text-sm" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Text message" />
+            <label title="Send a photo (picture message)" className="cursor-pointer rounded-full px-2 text-lg">📷<input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && uploadPhoto(e.target.files[0])} /></label>
             <button className="rounded-full bg-sky-500 px-3 text-sm text-white" onClick={send}>↑</button>
           </div>
         </div>

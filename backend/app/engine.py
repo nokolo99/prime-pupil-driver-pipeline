@@ -19,8 +19,8 @@ from datetime import timedelta
 from .config import (DEFAULT_FOLLOW_UP, FOLLOW_UP_SCHEDULE, GIVE_UP_AFTER_DAYS, LOCAL_TZ, QUIET_HOURS,
                      RESULTS_OVERDUE_DAYS)
 from .conversation import create_task, log_event, send, template
-from .models import (Actor, BackgroundCheck, Candidate, CandidateStatus, Clinic, DrugTest, Sender, Stage, Step,
-                     StepStatus, Task, TaskStatus, now)
+from .models import (Actor, BackgroundCheck, Candidate, CandidateStatus, Clinic, DrugTest, Offer, Sender, SkillsTest,
+                     Stage, Step, StepStatus, Task, TaskStatus, Training, now)
 
 log = logging.getLogger(__name__)
 
@@ -49,8 +49,39 @@ def _reminder(s: Session, c: Candidate, step: Step, due_day: int) -> tuple[str, 
     if step.stage == Stage.drug_test:
         dt = s.get(DrugTest, step.id)
         return template("drug_reminder", c.preferred_language, first_name=c.first_name, link=dt.booking_link)
+    if step.stage == Stage.cdl_permit:
+        from .config import DMV_PERMIT_LINK
+        return template("permit_reminder", c.preferred_language, first_name=c.first_name, link=DMV_PERMIT_LINK)
+    if step.stage == Stage.skills_test:
+        return template("skills_reminder", c.preferred_language, first_name=c.first_name, link=s.get(SkillsTest, step.id).test_link)
+    if step.stage == Stage.offer:
+        return template("offer_reminder", c.preferred_language, first_name=c.first_name, link=s.get(Offer, step.id).sign_link)
     level = 1 if due_day <= 2 else 2 if due_day <= 10 else 3
     return template(f"reminder_{level}", c.preferred_language, first_name=c.first_name)
+
+
+def _training_reminders(s: Session, t) -> int:
+    from .stages import fmt_when
+    actions = 0
+    for tr in s.exec(select(Training).where(Training.completed_at == None)).all():  # noqa: E711
+        step = s.get(Step, tr.step_id)
+        c = s.get(Candidate, step.candidate_id)
+        if c.opted_out or c.stage != Stage.training or in_quiet_hours(t):
+            continue
+        start = _aware(tr.cohort_start)
+        lt, ls = t.astimezone(ZoneInfo(LOCAL_TZ)), start.astimezone(ZoneInfo(LOCAL_TZ))
+        if not tr.reminded_morning_of and lt.date() == ls.date() and lt < ls:
+            body, en = template("training_morning_of", c.preferred_language, time=ls.strftime("%-I:%M %p"), link=tr.session_link)
+            tr.reminded_morning_of = tr.reminded_day_before = True
+        elif not tr.reminded_day_before and ls.date() - lt.date() == timedelta(days=1):
+            body, en = template("training_day_before", c.preferred_language, when=fmt_when(start), link=tr.session_link)
+            tr.reminded_day_before = True
+        else:
+            continue
+        send(s, c, body, en, Sender.system)
+        log_event(s, c, "training_reminder", Actor.system)
+        actions += 1
+    return actions
 
 
 def _appointments(s: Session, t) -> int:
@@ -107,7 +138,7 @@ def _overdue(s: Session, t) -> int:
 def tick(s: Session) -> int:
     """Returns how many actions were taken."""
     t = now()
-    actions = _appointments(s, t) + _overdue(s, t)
+    actions = _appointments(s, t) + _overdue(s, t) + _training_reminders(s, t)
     steps = s.exec(select(Step).where(Step.status == StepStatus.waiting_on_candidate)).all()
     for step in steps:
         c = s.get(Candidate, step.candidate_id)

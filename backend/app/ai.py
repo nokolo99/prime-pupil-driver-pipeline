@@ -179,3 +179,28 @@ def parse_bg_email(subject: str, body: str) -> BgEmail:
     if resp.parsed_output is None:
         raise RuntimeError("Could not parse email")
     return resp.parsed_output
+
+
+# ---------- Permit photo ----------
+
+class PermitRead(BaseModel):
+    legible: bool = Field(description="Is this a readable photo of a driver's license or permit?")
+    is_cdl_learner_permit: bool = Field(description="Is it a commercial learner's permit (CLP/CDL permit), not a regular license?")
+    name: Optional[str] = None
+    permit_number: Optional[str] = None
+    license_class: Optional[str] = Field(None, description="e.g. A, B")
+    state: Optional[str] = None
+    expiration_date: Optional[str] = Field(None, description="YYYY-MM-DD if visible")
+
+
+def read_permit(image_b64: str, media_type: str) -> PermitRead:
+    """Read the permit photo. Code compares the result with the candidate record; a recruiter verifies."""
+    resp = _call(CLAUDE_MODEL, max_tokens=1000, output_config={"effort": "low"},
+                 system="Read this photo of a driver's permit. Report only what is printed; leave fields null if not visible.",
+                 messages=[{"role": "user", "content": [
+                     {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_b64}},
+                     {"type": "text", "text": "Extract the permit details."}]}],
+                 output_format=PermitRead)
+    if resp.parsed_output is None:
+        raise RuntimeError("Could not read permit")
+    return resp.parsed_output
