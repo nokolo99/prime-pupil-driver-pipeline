@@ -52,7 +52,22 @@ def send(s: Session, candidate: Candidate, body: str, body_en: Optional[str], se
                   translation_en=body_en if body_en and body_en != body else None)
     s.add(msg)
     candidate.last_contacted_at = now()
+    if msg.channel == Channel.sms and not candidate.opted_out:
+        _deliver_sms(s, candidate, msg)
     return msg
+
+
+def _deliver_sms(s: Session, candidate: Candidate, msg: Message) -> None:
+    """Hand an outbound text to Twilio. Failures are logged on the timeline, never raised."""
+    from . import telephony
+    if not telephony.twilio_ready():
+        return
+    try:
+        msg.provider_id = telephony.send_sms(candidate.phone, msg.body)
+    except Exception as e:
+        log.warning("SMS to %s failed: %s", candidate.phone, e)
+        s.add(Event(candidate_id=candidate.id, type="sms_failed", actor=Actor.system,
+                    details={"error": str(getattr(e, "msg", e))[:200]}))
 
 
 def screening_step(s: Session, candidate: Candidate) -> tuple[Step, ScreeningResult]:

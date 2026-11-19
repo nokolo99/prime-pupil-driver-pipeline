@@ -334,7 +334,7 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 
 | System | In this build | In production |
 |---|---|---|
-| Twilio SMS | Real (pending A2P registration) | Real |
+| Twilio SMS | Wired: inbound webhook, outbound send, STOP/START, delivery receipts. Outbound blocked (30034) until A2P approval | Real |
 | Twilio voice | Real: ConversationRelay (ElevenLabs TTS, Deepgram STT) over WebSocket | Same; deploy removes ngrok |
 | Claude API | Real | Real |
 | Workday: outbound (stage sync) | Mock connector (Tier 2) | Real Workday API behind the same interface |

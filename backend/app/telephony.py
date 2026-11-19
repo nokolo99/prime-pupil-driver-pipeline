@@ -50,8 +50,9 @@ def start(port: int = 8000) -> None:
             number = os.environ["TWILIO_PHONE_NUMBER"]
             nums = client().incoming_phone_numbers.list(phone_number=number, limit=1)
             if nums:
-                nums[0].update(voice_url=f"{PUBLIC_URL}/voice/inbound", voice_method="POST")
-                log.info("Twilio %s voice webhook -> %s/voice/inbound", number, PUBLIC_URL)
+                nums[0].update(voice_url=f"{PUBLIC_URL}/voice/inbound", voice_method="POST",
+                               sms_url=f"{PUBLIC_URL}/sms/inbound", sms_method="POST")
+                log.info("Twilio %s webhooks -> %s/voice/inbound, /sms/inbound", number, PUBLIC_URL)
             else:
                 log.warning("Twilio number %s not found on this account", number)
         except Exception:
@@ -80,3 +81,13 @@ def valid_signature(url: str, params: dict, signature: str) -> bool:
     """Verify a webhook really came from Twilio."""
     from twilio.request_validator import RequestValidator
     return RequestValidator(os.environ["TWILIO_AUTH_TOKEN"]).validate(url, params, signature)
+
+
+def send_sms(to: str, body: str) -> Optional[str]:
+    """Send a text. Returns the message SID. Delivery status arrives later at /sms/status."""
+    if not twilio_ready():
+        return None
+    kwargs = {"to": to, "from_": os.environ["TWILIO_PHONE_NUMBER"], "body": body}
+    if PUBLIC_URL:
+        kwargs["status_callback"] = f"{PUBLIC_URL}/sms/status"
+    return client().messages.create(**kwargs).sid

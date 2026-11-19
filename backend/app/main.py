@@ -23,7 +23,7 @@ from .db import engine as db_engine  # noqa: E402
 from .engine import tick  # noqa: E402
 from .models import Setting  # noqa: E402
 from . import telephony  # noqa: E402
-from .routes import actions, candidates, chat, demo, intake, voice  # noqa: E402
+from .routes import actions, candidates, chat, demo, intake, sms, voice  # noqa: E402
 from .seed import seed_reference_data  # noqa: E402
 
 
@@ -70,6 +70,7 @@ app.include_router(intake.router)
 app.include_router(actions.router)
 app.include_router(demo.router)
 app.include_router(voice.router)
+app.include_router(sms.router)
 
 
 @app.get("/api/health")
