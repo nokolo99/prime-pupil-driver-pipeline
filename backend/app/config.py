@@ -144,9 +144,12 @@ TEMPLATES = {
 RELAY_TTS_PROVIDER = "ElevenLabs"
 # One native voice per language (ElevenLabs v4). Replies are tagged with a language, and Twilio
 # uses the matching voice, so Spanish is spoken by a native Spanish voice, not an English one.
+# One bilingual voice for both languages, so the same "person" speaks even when the caller switches.
+# (Previous per-language defaults: en UgBBYS2sOqTuMpoF3BR0, es uDhfdG2VwEjWZ4JYzggn.)
+BILINGUAL_VOICE = os.getenv("RELAY_VOICE", "9Godp7dNohUvXk6qp0gS-v4")
 RELAY_VOICES = {
-    "en": ("en-US", os.getenv("RELAY_VOICE_EN", "UgBBYS2sOqTuMpoF3BR0-v4")),  # Twilio's default English ElevenLabs voice
-    "es": ("es-US", os.getenv("RELAY_VOICE_ES", "uDhfdG2VwEjWZ4JYzggn-v4")),  # Twilio's default US-Spanish ElevenLabs voice
+    "en": ("en-US", os.getenv("RELAY_VOICE_EN", BILINGUAL_VOICE)),
+    "es": ("es-US", os.getenv("RELAY_VOICE_ES", BILINGUAL_VOICE)),
 }
 RELAY_TRANSCRIPTION_PROVIDER = "Deepgram"
 RELAY_LANGUAGE = "multi"
