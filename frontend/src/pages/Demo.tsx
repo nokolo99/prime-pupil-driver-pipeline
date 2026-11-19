@@ -19,7 +19,7 @@ export default function Demo() {
     const t = setInterval(load, 1500);
     return () => clearInterval(t);
   }, [phone]);
-  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth" }), [msgs.length]);
+  useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
 
   async function apply() {
     const workday_id = `WD-${Math.floor(1000 + Math.random() * 9000)}`;
