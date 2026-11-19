@@ -18,7 +18,7 @@ from sqlmodel import Session, select
 from twilio.twiml.voice_response import VoiceResponse
 
 from .. import telephony
-from ..config import (RELAY_LANGUAGE, RELAY_TRANSCRIPTION_PROVIDER, RELAY_TTS_PROVIDER, RELAY_VOICE, VOICES)
+from ..config import (RELAY_LANGUAGE, RELAY_TRANSCRIPTION_PROVIDER, RELAY_TTS_PROVIDER, RELAY_VOICES, VOICES)
 from ..conversation import handle_inbound, log_event, template
 from ..db import engine, get_session
 from ..models import Actor, Candidate, CandidateStatus, Channel, Message, Sender, Stage
@@ -69,12 +69,19 @@ def _relay_twiml(s: Session, c: Candidate, greeting_key: str) -> Response:
     token = secrets.token_urlsafe(16)
     _call_tokens[token] = c.id
     ws_url = telephony.PUBLIC_URL.replace("https://", "wss://") + f"/voice/relay?token={token}"
+    tts_lang, voice = RELAY_VOICES.get(c.preferred_language, RELAY_VOICES["en"])
+    languages = "".join(
+        f'<Language code="{code}" ttsProvider="{RELAY_TTS_PROVIDER}" voice="{v}" '
+        f'transcriptionProvider="{RELAY_TRANSCRIPTION_PROVIDER}" />'
+        for code, v in RELAY_VOICES.values()
+    )
     body = (
         '<?xml version="1.0" encoding="UTF-8"?><Response>'
         '<Connect action="/voice/relay-ended">'
         f'<ConversationRelay url={quoteattr(ws_url)} welcomeGreeting={quoteattr(greeting)} '
-        f'language="{RELAY_LANGUAGE}" ttsProvider="{RELAY_TTS_PROVIDER}" voice="{RELAY_VOICE}" '
-        f'transcriptionProvider="{RELAY_TRANSCRIPTION_PROVIDER}" interruptible="any" />'
+        f'transcriptionLanguage="{RELAY_LANGUAGE}" transcriptionProvider="{RELAY_TRANSCRIPTION_PROVIDER}" '
+        f'ttsLanguage="{tts_lang}" ttsProvider="{RELAY_TTS_PROVIDER}" voice="{voice}" interruptible="any">'
+        f'{languages}</ConversationRelay>'
         '</Connect></Response>'
     )
     return _xml(body)
@@ -116,8 +123,8 @@ async def relay_ended(request: Request):
     return _xml(str(vr))
 
 
-def _process_turn(candidate_id: int, speech: str, lang: str | None) -> tuple[str, bool]:
-    """Run one caller turn through the shared conversation logic. Returns (text to speak, end call?)."""
+def _process_turn(candidate_id: int, speech: str, lang: str | None) -> tuple[str, bool, str]:
+    """Run one caller turn through the shared conversation logic. Returns (text, end call?, reply language)."""
     with Session(engine) as s:
         c = s.get(Candidate, candidate_id)
         low = speech.lower()
@@ -125,7 +132,7 @@ def _process_turn(candidate_id: int, speech: str, lang: str | None) -> tuple[str
             s.add(Message(candidate_id=c.id, direction="in", channel=Channel.voice, sender=Sender.candidate, body=speech))
             text, en = template("voice_later", c.preferred_language)
             _log_spoken(s, c, text, en); s.commit()
-            return text, True
+            return text, True, c.preferred_language
 
         last_id = s.exec(select(Message.id).where(Message.candidate_id == c.id).order_by(Message.id.desc())).first() or 0
         handle_inbound(s, c, speech, Channel.voice)  # same brain as SMS: code decides, Claude writes
@@ -136,7 +143,7 @@ def _process_turn(candidate_id: int, speech: str, lang: str | None) -> tuple[str
         over = c.stage != Stage.screening or c.status == CandidateStatus.needs_review
         if over:
             text = f"{text} {template('voice_goodbye', c.preferred_language)[0]}"
-        return text, over
+        return text, over, c.preferred_language
 
 
 @router.websocket("/relay")
@@ -157,8 +164,10 @@ async def relay(ws: WebSocket, token: str):
                 speech = (msg.get("voicePrompt") or "").strip()
                 if not speech:
                     continue
-                text, end = await asyncio.to_thread(_process_turn, candidate_id, speech, msg.get("lang"))
-                await ws.send_text(json.dumps({"type": "text", "token": text, "last": True}))
+                text, end, reply_lang = await asyncio.to_thread(_process_turn, candidate_id, speech, msg.get("lang"))
+                tts_lang = RELAY_VOICES.get(reply_lang, RELAY_VOICES["en"])[0]
+                # lang picks the matching <Language> voice (native Spanish voice for Spanish replies).
+                await ws.send_text(json.dumps({"type": "text", "token": text, "last": True, "lang": tts_lang}))
                 if end:
                     # Give the voice time to finish speaking before handing the call back.
                     await asyncio.sleep(min(2 + len(text) / 14, 20))

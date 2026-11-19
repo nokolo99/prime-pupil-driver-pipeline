@@ -140,7 +140,12 @@ TEMPLATES = {
 # Streaming calls (Twilio ConversationRelay): ElevenLabs speaks, Deepgram listens.
 # language="multi" lets Deepgram detect English/Spanish automatically.
 RELAY_TTS_PROVIDER = "ElevenLabs"
-RELAY_VOICE = os.getenv("RELAY_VOICE", "UgBBYS2sOqTuMpoF3BR0")  # Twilio's default ElevenLabs voice; swap to compare
+# One native voice per language (ElevenLabs v4). Replies are tagged with a language, and Twilio
+# uses the matching voice, so Spanish is spoken by a native Spanish voice, not an English one.
+RELAY_VOICES = {
+    "en": ("en-US", os.getenv("RELAY_VOICE_EN", "UgBBYS2sOqTuMpoF3BR0-v4")),  # Twilio's default English ElevenLabs voice
+    "es": ("es-US", os.getenv("RELAY_VOICE_ES", "uDhfdG2VwEjWZ4JYzggn-v4")),  # Twilio's default US-Spanish ElevenLabs voice
+}
 RELAY_TRANSCRIPTION_PROVIDER = "Deepgram"
 RELAY_LANGUAGE = "multi"
 # <Say> voices for the short non-conversational bits (voicemail, unknown caller).
