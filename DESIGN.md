@@ -334,7 +334,8 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 
 | System | In this build | In production |
 |---|---|---|
-| Twilio (SMS, voice) | Real | Real (A2P 10DLC registration required) |
+| Twilio SMS | Real (pending A2P registration) | Real |
+| Twilio voice | Real: ConversationRelay (ElevenLabs TTS, Deepgram STT) over WebSocket | Same; deploy removes ngrok |
 | Claude API | Real | Real |
 | Workday: outbound (stage sync) | Mock connector (Tier 2) | Real Workday API behind the same interface |
 | Background-check vendor | Mock API for ordering; results arrive as emails we parse | Vendor API for ordering (confirm availability); inbound email parsing or vendor webhook for results |
@@ -395,6 +396,7 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Consequential messages (intro, passed, under review) use fixed templates, not AI wording | Exact wording is reviewable by HR/legal; AI handles the conversational parts |
 | 11-19 | Claude gets the ordered list of remaining questions; code decides order and completion | Fixed a bug where Claude had nothing to ask after an answer |
 | 11-19 | Voice: turn-based first (Twilio speech recognition + same screening logic), then streaming (ConversationRelay) for the demo | Get a working real-phone path fast; streaming is the natural-sounding experience Alex expects |
+| 11-19 | Turn-based voice tested and rejected (robotic, slow); switched to Twilio ConversationRelay with ElevenLabs voice + Deepgram (auto EN/ES detection) | Natural turn-taking + interruptions; Twilio stays the telephony layer; same conversation brain |
 | 11-19 | Voice both outbound (follow-up calls, "call me now") and inbound | One conversation brain across SMS, voice, and simulator |
 | 11-19 | Unknown inbound callers get a polite close (no DRIVE prompt) | Applications come through Workday |
 | 11-19 | Calls disclose they're automated; no audio recording, transcript stored as messages | Compliance + one thread per candidate for recruiters |

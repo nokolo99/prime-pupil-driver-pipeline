@@ -104,12 +104,12 @@ TEMPLATES = {
         "es": "Hola {first_name}, gracias por tu interés en manejar con Prime Pupil. Después de revisarla, no podemos continuar con tu solicitud en este momento. Te deseamos lo mejor.",
     },
     "voice_greeting": {
-        "en": "Hi {first_name}, this is Prime Pupil's automated recruiting assistant, calling about your school bus driver application. Para español, diga español. Do you have a few minutes to continue?",
-        "es": "Hola {first_name}, soy el asistente automatizado de reclutamiento de Prime Pupil, llamando sobre tu solicitud para conductor de autobús escolar. For English, say English. ¿Tienes unos minutos para continuar?",
+        "en": "Hi {first_name}, this is Prime Pupil's automated recruiting assistant, calling about your school bus driver application. Do you have a few minutes to continue? Puedes hablarme en español si prefieres.",
+        "es": "Hola {first_name}, soy el asistente automatizado de reclutamiento de Prime Pupil, llamando sobre tu solicitud para conductor de autobús escolar. ¿Tienes unos minutos para continuar? You can also speak to me in English.",
     },
     "voice_inbound_greeting": {
-        "en": "Hi {first_name}, thanks for calling Prime Pupil. This is our automated recruiting assistant. Para español, diga español. Do you have a few minutes to continue your application?",
-        "es": "Hola {first_name}, gracias por llamar a Prime Pupil. Soy el asistente automatizado de reclutamiento. For English, say English. ¿Tienes unos minutos para continuar tu solicitud?",
+        "en": "Hi {first_name}, thanks for calling Prime Pupil. This is our automated recruiting assistant. Do you have a few minutes to continue your application? Puedes hablarme en español si prefieres.",
+        "es": "Hola {first_name}, gracias por llamar a Prime Pupil. Soy el asistente automatizado de reclutamiento. ¿Tienes unos minutos para continuar tu solicitud? You can also speak to me in English.",
     },
     "voice_unknown_caller": {
         "en": "Thanks for calling Prime Pupil Transportation. To apply to drive with us, please visit our careers page. Goodbye!",
@@ -137,4 +137,11 @@ TEMPLATES = {
 }
 
 # ---------- Voice ----------
+# Streaming calls (Twilio ConversationRelay): ElevenLabs speaks, Deepgram listens.
+# language="multi" lets Deepgram detect English/Spanish automatically.
+RELAY_TTS_PROVIDER = "ElevenLabs"
+RELAY_VOICE = os.getenv("RELAY_VOICE", "UgBBYS2sOqTuMpoF3BR0")  # Twilio's default ElevenLabs voice; swap to compare
+RELAY_TRANSCRIPTION_PROVIDER = "Deepgram"
+RELAY_LANGUAGE = "multi"
+# <Say> voices for the short non-conversational bits (voicemail, unknown caller).
 VOICES = {"en": ("Polly.Joanna-Neural", "en-US"), "es": ("Polly.Lupe-Neural", "es-US")}
