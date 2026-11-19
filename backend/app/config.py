@@ -5,6 +5,8 @@ import os
 
 # Claude model used for candidate conversations. Switch to "claude-opus-5-5" to compare.
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-5-5")
+# Live phone calls need fast replies; Haiku is much quicker and the code still makes every decision.
+CLAUDE_MODEL_VOICE = os.getenv("CLAUDE_MODEL_VOICE", "claude-haiku-5-5")
 
 # ---------- Screening (ASSUMED, confirm in email 2, Q15) ----------
 # Asked in this order. "field" is the ScreeningResult column the answer is stored in.

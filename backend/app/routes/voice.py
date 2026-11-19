@@ -163,7 +163,7 @@ def _process_turn(candidate_id: int, speech: str, lang: str | None) -> tuple[str
         return text, over, c.preferred_language, [m.id for m in new_msgs]
 
 
-MERGE_WAIT_S = 1.0  # after a turn, wait this long for more speech before replying
+MERGE_WAIT_S = 0.5  # after a turn, wait this long for more speech before replying
 
 
 @router.websocket("/relay")

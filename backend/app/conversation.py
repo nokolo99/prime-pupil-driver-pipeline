@@ -143,6 +143,7 @@ def _handle_screening_turn(s: Session, c: Candidate, body: str, channel: Channel
     try:
         turn = ai.run_turn(first_name=c.first_name, language=c.preferred_language,
                            remaining_questions=[q["ask"] for q in remaining], answered=answered,
+                           voice=(channel == Channel.voice),
                            transcript=_transcript(s, c), latest=body)
     except Exception as e:
         log.exception("Claude turn failed")

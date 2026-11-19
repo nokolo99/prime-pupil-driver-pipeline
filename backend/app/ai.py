@@ -12,7 +12,7 @@ from typing import Literal, Optional
 import anthropic
 from pydantic import BaseModel, Field
 
-from .config import CLAUDE_MODEL, FACTS
+from .config import CLAUDE_MODEL, CLAUDE_MODEL_VOICE, FACTS
 
 log = logging.getLogger(__name__)
 client = anthropic.Anthropic()
@@ -64,8 +64,20 @@ Facts you may use:
 {FACTS}"""
 
 
+VOICE_NOTE = """
+
+This turn is a live phone call: your reply will be spoken aloud. Keep it to one or two short sentences, conversational, no lists or symbols."""
+
+
+def _call(model: str, **kw):
+    """Structured-output call. Server-side refusal fallback where the model supports it (not Haiku)."""
+    if "haiku" in model:
+        return client.messages.parse(model=model, **kw)
+    return client.beta.messages.parse(model=model, betas=["server-side-fallback-2026-07-01"], fallbacks="default", **kw)
+
+
 def run_turn(*, first_name: str, language: str, remaining_questions: list[str],
-             answered: dict, transcript: list[tuple[str, str]], latest: str) -> TurnResult:
+             answered: dict, transcript: list[tuple[str, str]], latest: str, voice: bool = False) -> TurnResult:
     """One Claude call per inbound message. Raises on API failure; the caller handles fallback."""
     history = "\n".join(f"{who}: {text}" for who, text in transcript[-20:])
     state = {
@@ -79,14 +91,11 @@ def run_turn(*, first_name: str, language: str, remaining_questions: list[str],
         f"Conversation so far:\n{history}\n\n"
         f"Candidate's latest message:\n{latest}"
     )
-    resp = client.beta.messages.parse(
-        model=CLAUDE_MODEL,
+    resp = _call(
+        CLAUDE_MODEL_VOICE if voice else CLAUDE_MODEL,
         max_tokens=2000,
         output_config={"effort": "low"},
-        # Server-side fallback: if a request is declined, the API retries on a fallback model.
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",
-        system=SYSTEM,
+        system=SYSTEM + (VOICE_NOTE if voice else ""),
         messages=[{"role": "user", "content": user}],
         output_format=TurnResult,
     )
@@ -101,12 +110,10 @@ class Translation(BaseModel):
 
 def translate(text: str, to_language: str) -> str:
     """Translate a fixed template into a language we don't have a template for."""
-    resp = client.beta.messages.parse(
-        model=CLAUDE_MODEL,
+    resp = _call(
+        CLAUDE_MODEL,
         max_tokens=1000,
         output_config={"effort": "low"},
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",
         system="Translate the SMS message faithfully. Keep it short and plain. Do not add anything.",
         messages=[{"role": "user", "content": f"Target language (ISO 639-1): {to_language}\n\n{text}"}],
         output_format=Translation,
