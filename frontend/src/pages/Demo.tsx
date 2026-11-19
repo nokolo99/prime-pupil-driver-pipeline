@@ -26,6 +26,13 @@ export default function Demo() {
     const r = await api<{ offset_days: number; actions: number }>("/demo/clock/advance", { method: "POST", body: JSON.stringify({ days }) });
     setNote(`Simulated time is now +${r.offset_days} days. The engine took ${r.actions} action(s).`);
   }
+  const [voice, setVoice] = useState<{ ready: boolean } | null>(null);
+  useEffect(() => { api<{ ready: boolean }>("/demo/voice-status").then(setVoice); }, []);
+  async function callNow() {
+    try { await api("/demo/call", { method: "POST", body: JSON.stringify({ phone }) }); setNote(`Calling ${phone}… answer your phone!`); }
+    catch (e) { setNote(String(e)); }
+  }
+
   async function resetClock() { await api("/demo/clock/reset", { method: "POST" }); setNote("Clock reset to real time."); }
   useEffect(() => {
     const load = () => api<Message[]>(`/sim/messages?phone=${encodeURIComponent(phone)}`).then(setMsgs);
@@ -91,11 +98,16 @@ export default function Demo() {
 
       <section>
         <h2 className="mb-2 text-lg font-semibold">Candidate's phone</h2>
-        <input className={`${input} mb-2`} value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <div className="mb-2 flex gap-2">
+          <input className={input} value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <button disabled={!voice?.ready} title={voice?.ready ? "AI calls this number now" : "Voice not configured"}
+            className="whitespace-nowrap rounded bg-sky-700 px-3 text-sm text-white disabled:opacity-40" onClick={callNow}>📞 Call me now</button>
+        </div>
+        <p className="mb-2 text-xs text-stone-500">Texts appear below. Voice calls go to the real phone number; their transcript shows here and on the candidate page.</p>
         <div className="mx-auto w-80 rounded-[2rem] border-8 border-stone-800 bg-white">
           <div className="h-[28rem] space-y-2 overflow-y-auto p-3">
             {msgs.map((m) => (
-              <div key={m.id} className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${m.direction === "in" ? "ml-auto bg-sky-500 text-white" : "bg-stone-200"}`}>{m.body}</div>
+              <div key={m.id} className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${m.direction === "in" ? "ml-auto bg-sky-500 text-white" : "bg-stone-200"}`}>{m.channel === "voice" ? "📞 " : ""}{m.body}</div>
             ))}
             {busy && <div className="w-12 rounded-2xl bg-stone-200 px-3 py-2 text-sm text-stone-500">…</div>}
             <div ref={end} />

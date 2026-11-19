@@ -103,8 +103,38 @@ TEMPLATES = {
         "en": "Hi {first_name}, thank you for your interest in driving with Prime Pupil. After review, we're unable to move forward with your application at this time. We wish you the best.",
         "es": "Hola {first_name}, gracias por tu interés en manejar con Prime Pupil. Después de revisarla, no podemos continuar con tu solicitud en este momento. Te deseamos lo mejor.",
     },
+    "voice_greeting": {
+        "en": "Hi {first_name}, this is Prime Pupil's automated recruiting assistant, calling about your school bus driver application. Para español, diga español. Do you have a few minutes to continue?",
+        "es": "Hola {first_name}, soy el asistente automatizado de reclutamiento de Prime Pupil, llamando sobre tu solicitud para conductor de autobús escolar. For English, say English. ¿Tienes unos minutos para continuar?",
+    },
+    "voice_inbound_greeting": {
+        "en": "Hi {first_name}, thanks for calling Prime Pupil. This is our automated recruiting assistant. Para español, diga español. Do you have a few minutes to continue your application?",
+        "es": "Hola {first_name}, gracias por llamar a Prime Pupil. Soy el asistente automatizado de reclutamiento. For English, say English. ¿Tienes unos minutos para continuar tu solicitud?",
+    },
+    "voice_unknown_caller": {
+        "en": "Thanks for calling Prime Pupil Transportation. To apply to drive with us, please visit our careers page. Goodbye!",
+    },
+    "voicemail": {
+        "en": "Hi {first_name}, this is Prime Pupil's automated recruiting assistant about your school bus driver application. Call or text us back at this number anytime to pick up where you left off. Thanks!",
+        "es": "Hola {first_name}, soy el asistente automatizado de reclutamiento de Prime Pupil, sobre tu solicitud para conductor de autobús escolar. Llámanos o escríbenos a este número cuando quieras para continuar. ¡Gracias!",
+    },
+    "voice_no_input": {
+        "en": "Sorry, I didn't catch that. Could you say it again?",
+        "es": "Perdón, no te escuché bien. ¿Puedes repetirlo?",
+    },
+    "voice_goodbye": {
+        "en": "Thanks for your time. Goodbye!",
+        "es": "Gracias por tu tiempo. ¡Adiós!",
+    },
+    "voice_later": {
+        "en": "No problem. We'll follow up another time. You can also call or text us back anytime. Goodbye!",
+        "es": "No hay problema. Te contactaremos en otro momento. También puedes llamarnos o escribirnos cuando quieras. ¡Adiós!",
+    },
     "error": {
         "en": "Sorry, I had trouble with that. Could you send it again?",
         "es": "Perdón, tuve un problema. ¿Puedes enviarlo de nuevo?",
     },
 }
+
+# ---------- Voice ----------
+VOICES = {"en": ("Polly.Joanna-Neural", "en-US"), "es": ("Polly.Lupe-Neural", "es-US")}

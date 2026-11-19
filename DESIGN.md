@@ -394,6 +394,10 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Conversation = code decides, Claude writes (one structured call per turn; no agent tools) | Predictable, auditable; Claude never advances or rejects anyone |
 | 11-19 | Consequential messages (intro, passed, under review) use fixed templates, not AI wording | Exact wording is reviewable by HR/legal; AI handles the conversational parts |
 | 11-19 | Claude gets the ordered list of remaining questions; code decides order and completion | Fixed a bug where Claude had nothing to ask after an answer |
+| 11-19 | Voice: turn-based first (Twilio speech recognition + same screening logic), then streaming (ConversationRelay) for the demo | Get a working real-phone path fast; streaming is the natural-sounding experience Alex expects |
+| 11-19 | Voice both outbound (follow-up calls, "call me now") and inbound | One conversation brain across SMS, voice, and simulator |
+| 11-19 | Unknown inbound callers get a polite close (no DRIVE prompt) | Applications come through Workday |
+| 11-19 | Calls disclose they're automated; no audio recording, transcript stored as messages | Compliance + one thread per candidate for recruiters |
 | 11-19 | Approve/reject happens in our dashboard and syncs to Workday (mock) | One place for recruiters to act; Workday stays system of record |
 | 11-19 | Follow-ups run for 90 days (configurable), mixing SMS and AI voice calls; at day 90 reminders stop and a recruiter decides | Solve drop-off by never abandoning candidates early; humans only step in at the end |
 | 11-19 | Unresponsive candidates get AI calls, not recruiter calls | Recruiter time is the bottleneck John named |

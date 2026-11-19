@@ -44,9 +44,10 @@ def template(key: str, lang: str, **kw) -> tuple[str, str]:
         return en, en
 
 
-def send(s: Session, candidate: Candidate, body: str, body_en: Optional[str], sender: Sender) -> Message:
-    """Record an outbound message. Delivery (SMS / voice) is plugged in later; the simulator reads these rows."""
-    msg = Message(candidate_id=candidate.id, direction="out", channel=candidate.preferred_channel,
+def send(s: Session, candidate: Candidate, body: str, body_en: Optional[str], sender: Sender,
+         channel: Optional[Channel] = None) -> Message:
+    """Record an outbound message. On a voice call the voice route speaks it; SMS delivery is plugged in later."""
+    msg = Message(candidate_id=candidate.id, direction="out", channel=channel or candidate.preferred_channel,
                   sender=sender, body=body, language=candidate.preferred_language,
                   translation_en=body_en if body_en and body_en != body else None)
     s.add(msg)
@@ -124,7 +125,7 @@ def handle_inbound(s: Session, candidate: Candidate, body: str, channel: Channel
         s.commit()
         return
 
-    _handle_screening_turn(s, candidate, body)
+    _handle_screening_turn(s, candidate, body, channel)
     s.commit()
 
 
@@ -133,7 +134,7 @@ def _transcript(s: Session, candidate: Candidate) -> list[tuple[str, str]]:
     return [("Candidate" if m.direction == "in" else "Assistant", m.body) for m in msgs[:-1]]
 
 
-def _handle_screening_turn(s: Session, c: Candidate, body: str) -> None:
+def _handle_screening_turn(s: Session, c: Candidate, body: str, channel: Channel = Channel.web) -> None:
     step, sr = screening_step(s, c)
     step.nudge_count, step.last_nudged_at = 0, None  # candidate is active again: restart follow-ups
     remaining = remaining_questions(sr)
@@ -147,7 +148,7 @@ def _handle_screening_turn(s: Session, c: Candidate, body: str) -> None:
         log.exception("Claude turn failed")
         log_event(s, c, "ai_error", Actor.ai, error=str(e)[:200])
         text, en = template("error", c.preferred_language)
-        send(s, c, text, en, Sender.system)
+        send(s, c, text, en, Sender.system, channel)
         return
 
     # Store translation of the inbound message for recruiters.
@@ -184,14 +185,14 @@ def _handle_screening_turn(s: Session, c: Candidate, body: str) -> None:
 
     # Is screening complete? (code decides)
     if not remaining_questions(sr):
-        _finish_screening(s, c, step, sr)
+        _finish_screening(s, c, step, sr, channel)
         return
 
-    send(s, c, turn.reply, turn.reply_en, Sender.ai)
+    send(s, c, turn.reply, turn.reply_en, Sender.ai, channel)
     log_event(s, c, "message_sent", Actor.ai, intent=turn.intent)
 
 
-def _finish_screening(s: Session, c: Candidate, step: Step, sr: ScreeningResult) -> None:
+def _finish_screening(s: Session, c: Candidate, step: Step, sr: ScreeningResult, channel: Channel = Channel.web) -> None:
     flags = [label for field, check, label in KNOCKOUT_RULES if check(getattr(sr, field))]
     flags += [f for f in (sr.knockout_flags or []) if f.startswith("Unclear answer")]
     sr.knockout_flags = flags
@@ -209,7 +210,7 @@ def _finish_screening(s: Session, c: Candidate, step: Step, sr: ScreeningResult)
         log_event(s, c, "screening_completed", Actor.system, result="pass")
         advance(s, c, Stage.background_check)
 
-    send(s, c, text, en, Sender.system)
+    send(s, c, text, en, Sender.system, channel)
 
 
 def advance(s: Session, c: Candidate, to: Stage) -> None:

@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 from sqlmodel import Session, select
 
+from . import telephony
 from .config import DEFAULT_FOLLOW_UP, FOLLOW_UP_SCHEDULE, GIVE_UP_AFTER_DAYS, LOCAL_TZ, QUIET_HOURS
 from .conversation import create_task, log_event, send, template
 from .models import Actor, Candidate, CandidateStatus, Sender, Step, StepStatus, Task, TaskStatus, now
@@ -68,8 +69,19 @@ def tick(s: Session) -> int:
             continue
 
         n = step.nudge_count + 1
-        if kind == "call":
-            # Voice arrives in increment 5. Until then, log the intended call and text instead.
+        if kind == "call" and telephony.voice_ready():
+            try:
+                sid = telephony.place_call(c.phone, c.id, "follow_up")
+                log_event(s, c, "ai_call_placed", Actor.system, attempt=n, day=due_day, call_sid=sid)
+                step.nudge_count, step.last_nudged_at = n, t
+                actions += 1
+                continue
+            except Exception as e:
+                log.exception("call failed")
+                log_event(s, c, "ai_call_failed", Actor.system, error=str(e)[:200])
+            body, en = template("call_fallback", c.preferred_language, first_name=c.first_name)
+        elif kind == "call":
+            # Voice not configured: log the intended call and text instead.
             log_event(s, c, "ai_call_placeholder", Actor.system, attempt=n, day=due_day)
             body, en = template("call_fallback", c.preferred_language, first_name=c.first_name)
         else:

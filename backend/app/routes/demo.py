@@ -56,3 +56,31 @@ def run_tick(s: Session = Depends(get_session)):
 @router.get("/workday-outbox")
 def outbox(s: Session = Depends(get_session)):
     return s.exec(select(WorkdayOutbox).order_by(WorkdayOutbox.id.desc()).limit(50)).all()
+
+
+class CallReq(BaseModel):
+    phone: str
+
+
+@router.get("/voice-status")
+def voice_status():
+    from .. import telephony
+    return {"twilio": telephony.twilio_ready(), "public_url": telephony.PUBLIC_URL, "ready": telephony.voice_ready()}
+
+
+@router.post("/call")
+def call_now(r: CallReq, s: Session = Depends(get_session)):
+    """'Call me now': the AI calls this candidate immediately."""
+    from fastapi import HTTPException
+    from .. import telephony
+    from ..conversation import log_event
+    from ..models import Actor, Candidate
+    c = s.exec(select(Candidate).where(Candidate.phone == r.phone).order_by(Candidate.created_at.desc())).first()
+    if not c:
+        raise HTTPException(404, "No applicant with this phone. Submit a Workday application first.")
+    if not telephony.voice_ready():
+        raise HTTPException(400, "Voice not configured (Twilio credentials / ngrok).")
+    sid = telephony.place_call(c.phone, c.id, "demo")
+    log_event(s, c, "ai_call_placed", Actor.system, reason="demo", call_sid=sid)
+    s.commit()
+    return {"call_sid": sid}
