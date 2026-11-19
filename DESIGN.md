@@ -322,11 +322,11 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 |---|---|---|
 | Twilio (SMS, voice) | Real | Real (A2P 10DLC registration required) |
 | Claude API | Real | Real |
-| Workday | Mock connector | Real Workday API behind the same interface |
+| Workday: outbound (stage sync) | Mock connector (Tier 2) | Real Workday API behind the same interface |
 | Background-check vendor | Mock API for ordering; results arrive as emails we parse | Vendor API for ordering (confirm availability); inbound email parsing or vendor webhook for results |
 | Drug-test vendor | Mock webhook for results | Vendor's integration (John confirmed one exists) |
 | Skills-test platform | Mock webhook for results (Tier 2) | Platform's integration (John confirmed one exists) |
-| Career page | Mock application form | Embed/forward from their existing career page form |
+| Workday: inbound (new applicants) | Mock Workday "new applicant" event, triggered from demo panel (Tier 1) | Workday Recruiting integration (event/report polling) |
 
 ## 14. Compliance & guardrails
 
@@ -347,6 +347,8 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 |---|---|---|
 | Screening questions + thresholds (21+, 3 yrs licensed, 5-yr violations, split shift) | John hasn't specified; common school bus requirements | Ask in email 2 (Q15) |
 | BG vendor offers an ordering API | Most major vendors do | Ask in email 2 (Q13) |
+| Facts sheet: pay $24/hr, paid training at same rate | Placeholder so the agent can answer pay questions; clearly marked in config | Confirm with Prime Pupil |
+| Depots are in upstate NY | Matches the 518 test number; John said one state | Cosmetic |
 
 ## 17. Decision log
 
@@ -375,6 +377,15 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Show English translation under non-English messages | Not every recruiter speaks Spanish |
 | 11-19 | Demo controls on a separate page | Recruiter UI stays the real product |
 | 11-19 | SQLModel + SQLite now; Postgres in production | Least code, reads like the data model; SQLAlchemy underneath; swap is a connection string |
+| 11-19 | Conversation = code decides, Claude writes (one structured call per turn; no agent tools) | Predictable, auditable; Claude never advances or rejects anyone |
+| 11-19 | Consequential messages (intro, passed, under review) use fixed templates, not AI wording | Exact wording is reviewable by HR/legal; AI handles the conversational parts |
+| 11-19 | Claude gets the ordered list of remaining questions; code decides order and completion | Fixed a bug where Claude had nothing to ask after an answer |
+| 11-19 | EN + ES fully supported/tested; other languages answered automatically, untested | Brief priority is Spanish; Claude handles most languages |
+| 11-19 | Off-script questions answered only from a configurable facts sheet; otherwise → recruiter task | Claude never invents pay/benefits; placeholders flagged as assumptions |
+| 11-19 | Agent confirms back what the candidate said before moving on | Catches misreads; candidate trust |
+| 11-19 | Unclear answers: one clarifying question, then flag for recruiter | Never guess on eligibility |
+| 11-19 | Start on Claude Sonnet 5.5 (model in config); try Opus 5.5 during testing | Cost while iterating; easy switch |
+| 11-19 | New applicants arrive from Workday (mocked "new applicant" event), not our own form | Brief: process runs on Workday; we plug in, not replace |
 
 ## 18. What we'd build next
 

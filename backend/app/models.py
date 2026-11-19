@@ -176,6 +176,7 @@ class ScreeningResult(SQLModel, table=True):
     availability_ok: Optional[bool] = None
     has_cdl_or_permit: Optional[bool] = None
     knockout_flags: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    unclear_counts: dict = Field(default_factory=dict, sa_column=Column(JSON))  # clarification attempts per field
 
 
 class BackgroundCheck(SQLModel, table=True):

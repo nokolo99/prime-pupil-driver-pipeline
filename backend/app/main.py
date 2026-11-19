@@ -2,15 +2,18 @@
 
 from contextlib import asynccontextmanager
 
+import logging
+
 from dotenv import load_dotenv
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
 
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 from .db import init_db  # noqa: E402
-from .routes import candidates, chat  # noqa: E402
+from .routes import candidates, chat, intake  # noqa: E402
 from .seed import seed_reference_data  # noqa: E402
 
 
@@ -32,6 +35,7 @@ app.add_middleware(
 
 app.include_router(candidates.router)
 app.include_router(chat.router)
+app.include_router(intake.router)
 
 
 @app.get("/api/health")
