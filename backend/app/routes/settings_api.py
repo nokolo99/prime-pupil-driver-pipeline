@@ -16,7 +16,8 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 def get_settings():
     return {"current": settings.current(), "defaults": settings.defaults(), "overrides": settings.overrides(),
             "template_labels": settings.EDITABLE_TEMPLATES, "editable_stages": settings.EDITABLE_STAGES,
-            "sla_stages": settings.SLA_STAGES, "presets": settings.PRESETS}
+            "sla_stages": settings.SLA_STAGES, "presets": settings.PRESETS,
+            "template_groups": settings.TEMPLATE_GROUPS, "reminder_sets": __import__("app.config", fromlist=["REMINDER_SETS"]).REMINDER_SETS}
 
 
 class Patch(BaseModel):

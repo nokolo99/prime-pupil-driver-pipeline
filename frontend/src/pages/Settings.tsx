@@ -10,7 +10,9 @@ type S = {
   stage_sla_days: Record<string, number>; results_overdue_days: Record<string, number>;
 };
 type Payload = { current: S; defaults: S; overrides: Partial<S>; template_labels: Record<string, string>; editable_stages: string[]; sla_stages: string[];
-                 presets: Record<string, Cadence> };
+                 presets: Record<string, Cadence>;
+                 template_groups: { group: string; items: [string, string][] }[]; reminder_sets: Record<string, string[]> };
+const VERSION_TONE = ["Friendly", "Helpful", "Encouraging", "Door's open"];
 
 // Same algorithm as the backend (settings.build_schedule): texts and calls separately; same day -> call.
 function build(c: Cadence, giveUp: number) {
@@ -41,7 +43,9 @@ export default function Settings() {
   const [draft, setDraft] = useState<S | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [saved, setSaved] = useState("");
-  const [tpl, setTpl] = useState("intro");
+  const [tpl, setTpl] = useState(() => new URLSearchParams(location.search).get("msg") ?? "intro");  // key or "reminders:<stage>"
+  const [openGroup, setOpenGroup] = useState(() => new URLSearchParams(location.search).get("group") ?? "Screening");
+  const [version, setVersion] = useState(0);
   const [openStage, setOpenStage] = useState<string | null>(() => new URLSearchParams(location.search).get("open"));
   const load = () => call<Payload>("GET", "").then((x) => { setP(x); setDraft(structuredClone(x.current)); });
   useEffect(() => { load(); }, []);
@@ -108,25 +112,53 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="B. Message wording" sub="Edit what candidates receive. Keep the {placeholders}: they're filled in per candidate (name, links, clinic, time). SMS messages that include the opt-out instruction must keep it.">
+      <Section title="B. Message wording" sub="Edit what candidates receive, grouped by stage. Keep the {placeholders}: they're filled in per candidate (name, links, clinic, time). SMS messages that include the opt-out instruction must keep it. Reminders rotate through 4 versions so repeats don't read the same.">
         <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
-          <div className="max-h-96 overflow-y-auto rounded border text-sm">
-            {Object.entries(p.template_labels).map(([k, l]) => (
-              <button key={k} onClick={() => setTpl(k)} className={`block w-full px-2 py-1.5 text-left ${tpl === k ? "bg-emerald-50 font-medium" : "hover:bg-stone-50"}`}>
-                {l}{isOverridden(["templates", k]) && <span className="ml-1 text-xs text-amber-700">• edited</span>}
-              </button>
-            ))}
-          </div>
-          <div className="space-y-3">
-            {["en", "es"].map((lang) => draft.templates[tpl]?.[lang] !== undefined && (
-              <div key={lang}>
-                <div className="mb-1 text-xs font-medium text-stone-600">{lang === "en" ? "English" : "Español"}</div>
-                <textarea className="h-24 w-full rounded border p-2 text-sm" value={draft.templates[tpl][lang]} onChange={(e) => set((d) => { d.templates[tpl][lang] = e.target.value; })} />
-                <div className="mt-1 rounded-2xl bg-stone-100 px-3 py-2 text-xs text-stone-700 whitespace-pre-line"><span className="text-stone-400">Preview: </span>{fill(draft.templates[tpl][lang])}</div>
+          <div className="max-h-[28rem] overflow-y-auto rounded-lg border text-sm">
+            {p.template_groups.map((g) => (
+              <div key={g.group} className="border-b last:border-0">
+                <button className="flex w-full items-center justify-between px-3 py-2 text-left font-medium hover:bg-stone-50" onClick={() => setOpenGroup(openGroup === g.group ? "" : g.group)}>
+                  {g.group}<span className="text-stone-400">{openGroup === g.group ? "▾" : "▸"}</span>
+                </button>
+                {openGroup === g.group && g.items.map(([k, l]) => {
+                  const key = k === "reminders" ? `reminders:${l}` : k;
+                  const edited = k === "reminders" ? p.reminder_sets[l].some((x) => isOverridden(["templates", x])) : isOverridden(["templates", k]);
+                  return (
+                    <button key={key} onClick={() => { setTpl(key); setVersion(0); }}
+                      className={`block w-full py-1.5 pl-6 pr-3 text-left ${tpl === key ? "bg-emerald-50 font-medium text-emerald-900" : "text-stone-700 hover:bg-stone-50"}`}>
+                      {k === "reminders" ? "Reminders (4 versions)" : l}{edited && <span className="ml-1 text-xs text-amber-700">• edited</span>}
+                    </button>
+                  );
+                })}
               </div>
             ))}
-            {isOverridden(["templates", tpl]) && <button className="text-xs text-stone-500 underline" onClick={() => reset(["templates", tpl])}>Reset this message to default</button>}
           </div>
+          {(() => {
+            const isSet = tpl.startsWith("reminders:");
+            const keys = isSet ? p.reminder_sets[tpl.split(":")[1]] : [tpl];
+            const key = keys[Math.min(version, keys.length - 1)];
+            if (!draft.templates[key]) return <p className="text-sm text-stone-500">Pick a message on the left.</p>;
+            return (
+              <div className="space-y-3">
+                {isSet && <div className="flex flex-wrap gap-1">
+                  {keys.map((k, i) => (
+                    <button key={k} onClick={() => setVersion(i)} className={`rounded-full border px-3 py-1 text-xs ${version === i ? "border-emerald-700 bg-emerald-50 text-emerald-900" : "hover:bg-stone-50"}`}>
+                      {i + 1} · {VERSION_TONE[i]}{isOverridden(["templates", k]) && " •"}
+                    </button>
+                  ))}
+                  <span className="self-center pl-2 text-xs text-stone-400">1st reminder uses version 1, then 2 → 3 → 4 repeating</span>
+                </div>}
+                {["en", "es"].map((lang) => draft.templates[key]?.[lang] !== undefined && (
+                  <div key={lang}>
+                    <div className="mb-1 text-xs font-medium text-stone-600">{lang === "en" ? "English" : "Español"}</div>
+                    <textarea className="h-24 w-full rounded-lg border p-2 text-sm" value={draft.templates[key][lang]} onChange={(e) => set((d) => { d.templates[key][lang] = e.target.value; })} />
+                    <div className="mt-1 whitespace-pre-line rounded-2xl bg-stone-100 px-3 py-2 text-xs text-stone-700"><span className="text-stone-400">Preview: </span>{fill(draft.templates[key][lang])}</div>
+                  </div>
+                ))}
+                {isOverridden(["templates", key]) && <button className="text-xs text-stone-500 underline" onClick={() => reset(["templates", key])}>Reset this message to default</button>}
+              </div>
+            );
+          })()}
         </div>
       </Section>
 

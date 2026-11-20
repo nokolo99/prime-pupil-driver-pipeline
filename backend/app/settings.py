@@ -35,7 +35,28 @@ EDITABLE_TEMPLATES = {
     "permit_new_photo": "CDL permit: new photo needed", "skills_start": "Skills test: link", "skills_reminder": "Skills test: reminder",
     "skills_retest": "Skills test: retest allowed", "offer_start": "Offer: sent", "offer_reminder": "Offer: reminder",
     "hired": "Hired", "rejected": "Rejected (after recruiter decision)",
+    "reminder_4": "Generic reminder (door's open)",
+    **{f"{p}_reminder_{i}": f"{p} reminder v{i}" for p in ("bg", "drug", "permit", "skills", "offer") for i in (2, 3, 4)},
 }
+
+# How the Settings page groups messages. A ("reminders", stage) item opens that stage's rotating versions as tabs.
+TEMPLATE_GROUPS = [
+    {"group": "Screening", "items": [["intro", "First message after applying"], ["reminders", "screening"],
+                                     ["screening_passed", "Passed screening"], ["screening_review", "Needs recruiter review"]]},
+    {"group": "Background check", "items": [["bg_start", "Form link"], ["reminders", "background_check"], ["bg_form_received", "Form received"],
+                                            ["bg_clear", "Result: clear"]]},
+    {"group": "Drug test", "items": [["drug_start", "Booking link + clinics"], ["reminders", "drug_test"], ["drug_booked", "Booked"],
+                                     ["drug_day_before", "Day before"], ["drug_morning_of", "Morning of"], ["drug_no_show", "Missed appointment"],
+                                     ["drug_collected", "Sample collected"], ["drug_negative", "Passed"]]},
+    {"group": "Training & CDL permit", "items": [["training_start", "Enrolled in training"], ["training_day_before", "Training: day before"],
+                                                 ["training_morning_of", "Training: morning of"], ["permit_start", "Permit: start"],
+                                                 ["reminders", "cdl_permit"], ["permit_photo_request", "Permit photo before offer"],
+                                                 ["permit_received", "Permit photo received"], ["permit_new_photo", "New permit photo needed"]]},
+    {"group": "Skills test", "items": [["skills_start", "Skills test link"], ["reminders", "skills_test"], ["skills_retest", "Retest allowed"]]},
+    {"group": "Offer", "items": [["offer_start", "Offer sent"], ["reminders", "offer"], ["hired", "Hired"]]},
+    {"group": "General", "items": [["under_review", "Results under recruiter review"], ["call_fallback", "Couldn't reach by call"],
+                                   ["rejected", "Rejected (after recruiter decision)"]]},
+]
 
 
 # Follow-up cadences: texts and AI calls are configured separately, then combined into exact days.

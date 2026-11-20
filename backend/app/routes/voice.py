@@ -161,7 +161,7 @@ def _text_after_missed_call(s: Session, c: Candidate) -> None:
     from ..engine import _reminder
     from ..stages import current_step
     step = current_step(s, c)
-    body, en = _reminder(s, c, step, due_day=5) if step else template("call_fallback", c.preferred_language, first_name=c.first_name)
+    body, en = _reminder(s, c, step, max(step.nudge_count, 1)) if step else template("call_fallback", c.preferred_language, first_name=c.first_name)
     send(s, c, body, en, Sender.system, text_channel(c))
 
 

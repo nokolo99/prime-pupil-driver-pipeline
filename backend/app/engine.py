@@ -41,27 +41,32 @@ def last_activity(c: Candidate, step: Step) -> datetime:
     return max(_aware(t) for t in times)
 
 
-def _reminder(s: Session, c: Candidate, step: Step, due_day: int) -> tuple[str, str]:
-    """Stage-specific reminder text (includes the link the candidate needs)."""
-    if step.stage == Stage.background_check:
-        bc = s.get(BackgroundCheck, step.id)
-        return template("bg_reminder", c.preferred_language, first_name=c.first_name, link=bc.form_link)
-    if step.stage == Stage.drug_test:
-        dt = s.get(DrugTest, step.id)
-        return template("drug_reminder", c.preferred_language, first_name=c.first_name, link=dt.booking_link)
-    if step.stage == Stage.cdl_permit:
-        from .config import DMV_PERMIT_LINK
-        from .models import PermitCheck
+def _reminder(s: Session, c: Candidate, step: Step, attempt: int) -> tuple[str, str]:
+    """Stage-specific reminder (with the link the candidate needs), rotating through approved variations."""
+    from .config import DMV_PERMIT_LINK, reminder_key
+    from .models import PermitCheck
+    lang, name = c.preferred_language, c.first_name
+    stage = step.stage.value
+    if stage == "cdl_permit":
         pc = s.get(PermitCheck, step.id)
         if pc and pc.photo_requested_at:  # offer is waiting on the permit photo
-            return template("permit_photo_request", c.preferred_language, first_name=c.first_name)
-        return template("permit_reminder", c.preferred_language, first_name=c.first_name, link=DMV_PERMIT_LINK)
-    if step.stage == Stage.skills_test:
-        return template("skills_reminder", c.preferred_language, first_name=c.first_name, link=s.get(SkillsTest, step.id).test_link)
-    if step.stage == Stage.offer:
-        return template("offer_reminder", c.preferred_language, first_name=c.first_name, link=s.get(Offer, step.id).sign_link)
-    level = 1 if due_day <= 2 else 2 if due_day <= 10 else 3
-    return template(f"reminder_{level}", c.preferred_language, first_name=c.first_name)
+            return template("permit_photo_request", lang, first_name=name)
+        return template(reminder_key(stage, attempt), lang, first_name=name, link=DMV_PERMIT_LINK)
+    link = None
+    if stage == "background_check":
+        link = s.get(BackgroundCheck, step.id).form_link
+    elif stage == "drug_test":
+        link = s.get(DrugTest, step.id).booking_link
+    elif stage == "skills_test":
+        link = s.get(SkillsTest, step.id).test_link
+    elif stage == "offer":
+        o = s.get(Offer, step.id)
+        if not o:  # offer not sent yet (waiting on permit photo)
+            return template("permit_photo_request", lang, first_name=name)
+        link = o.sign_link
+    elif stage != "screening":
+        return template("reminder_2", lang, first_name=name)
+    return template(reminder_key(stage, attempt), lang, first_name=name, **({"link": link} if link else {}))
 
 
 def _training_reminders(s: Session, t) -> int:
@@ -226,13 +231,13 @@ def tick(s: Session) -> int:
             except Exception as e:
                 log.exception("call failed")
                 log_event(s, c, "ai_call_failed", Actor.system, error=str(e)[:200])
-            body, en = _reminder(s, c, step, due_day)  # couldn't call: send the stage's reminder (with link)
+            body, en = _reminder(s, c, step, n)  # couldn't call: send the stage's reminder (with link)
         elif kind == "call":
             # Voice not configured: log the intended call and send the stage's reminder instead.
             log_event(s, c, "ai_call_placeholder", Actor.system, attempt=n, day=due_day)
-            body, en = _reminder(s, c, step, due_day)
+            body, en = _reminder(s, c, step, n)
         else:
-            body, en = _reminder(s, c, step, due_day)
+            body, en = _reminder(s, c, step, n)
         send(s, c, body, en, Sender.system)
         log_event(s, c, "nudge_sent", Actor.system, attempt=n, day=due_day, kind=kind, stage=step.stage.value)
         step.nudge_count, step.last_nudged_at = n, t

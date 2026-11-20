@@ -294,3 +294,88 @@ WORKDAY_DISPOSITIONS = {
     "failed_drug_test": "Drug Screen Not Cleared", "no_response": "Candidate Unresponsive",
     "took_another_job": "Accepted Other Offer", "withdrew": "Candidate Withdrew", "other": "Other",
 }
+
+# ---------- Reminder variations (rotated so repeated reminders don't read the same) ----------
+# Version 1 is the first reminder; later reminders cycle 2 -> 3 -> 4. Tone: friendly -> helpful -> encouraging -> door's open.
+TEMPLATES.update({
+    "reminder_4": {
+        "en": "Hi {first_name}, your spot is still open with Prime Pupil. Reply anytime and we'll finish your application together.",
+        "es": "Hola {first_name}, tu lugar sigue abierto en Prime Pupil. Responde cuando quieras y terminamos tu solicitud juntos.",
+    },
+    "bg_reminder_2": {
+        "en": "Hi {first_name}, just checking in: we're still waiting on your background check form. Any questions? Just reply here. {link}",
+        "es": "Hola {first_name}, solo para saber: todavía esperamos tu formulario de antecedentes. ¿Preguntas? Responde aquí. {link}",
+    },
+    "bg_reminder_3": {
+        "en": "{first_name}, you're so close! Your background check form is the only thing holding up your next step. 10 minutes: {link}",
+        "es": "¡{first_name}, ya casi! Tu formulario de antecedentes es lo único que falta para tu siguiente paso. 10 minutos: {link}",
+    },
+    "bg_reminder_4": {
+        "en": "Hi {first_name}, we'd still love to have you drive with Prime Pupil. Your background check form is ready whenever you are: {link}",
+        "es": "Hola {first_name}, nos encantaría que manejes con Prime Pupil. Tu formulario de antecedentes está listo cuando quieras: {link}",
+    },
+    "drug_reminder_2": {
+        "en": "Hi {first_name}, we're still waiting on your drug test. It takes about 15 minutes at a clinic near you. Questions? Just reply. {link}",
+        "es": "Hola {first_name}, todavía esperamos tu prueba de drogas. Toma unos 15 minutos en una clínica cercana. ¿Preguntas? Responde. {link}",
+    },
+    "drug_reminder_3": {
+        "en": "{first_name}, the drug test is the last step before paid CDL training! Pick a time that works for you: {link}",
+        "es": "¡{first_name}, la prueba de drogas es el último paso antes del entrenamiento CDL pagado! Elige un horario: {link}",
+    },
+    "drug_reminder_4": {
+        "en": "Hi {first_name}, your spot is still open. Book your drug test whenever you're ready: {link}",
+        "es": "Hola {first_name}, tu lugar sigue abierto. Reserva tu prueba de drogas cuando estés listo: {link}",
+    },
+    "permit_reminder_2": {
+        "en": "Hi {first_name}, how's the CDL permit going? The DMV knowledge test covers the CDL manual. Reply if you have questions. {link}",
+        "es": "Hola {first_name}, ¿cómo va el permiso CDL? El examen del DMV cubre el manual CDL. Responde si tienes preguntas. {link}",
+    },
+    "permit_reminder_3": {
+        "en": "{first_name}, you'll need your CDL learner's permit before your offer. Booking the DMV test now keeps you on track: {link}",
+        "es": "{first_name}, necesitas tu permiso de aprendiz CDL antes de tu oferta. Reservar el examen ahora te mantiene a tiempo: {link}",
+    },
+    "permit_reminder_4": {
+        "en": "Hi {first_name}, just text us once you have your CDL permit. Here's the DMV link again: {link}",
+        "es": "Hola {first_name}, avísanos cuando tengas tu permiso CDL. Aquí está el enlace del DMV otra vez: {link}",
+    },
+    "skills_reminder_2": {
+        "en": "Hi {first_name}, we're still waiting on your skills test. It's the last step before your offer. Questions? Just reply. {link}",
+        "es": "Hola {first_name}, todavía esperamos tu examen de habilidades. Es el último paso antes de tu oferta. ¿Preguntas? Responde. {link}",
+    },
+    "skills_reminder_3": {
+        "en": "{first_name}, you're almost there! Finish your skills test and your offer is next: {link}",
+        "es": "¡{first_name}, ya casi! Termina tu examen de habilidades y sigue tu oferta: {link}",
+    },
+    "skills_reminder_4": {
+        "en": "Hi {first_name}, your skills test is ready whenever you are: {link}",
+        "es": "Hola {first_name}, tu examen de habilidades está listo cuando quieras: {link}",
+    },
+    "offer_reminder_2": {
+        "en": "Hi {first_name}, your offer is still waiting. Any questions about pay or schedule? Just reply. {link}",
+        "es": "Hola {first_name}, tu oferta sigue esperando. ¿Preguntas sobre el pago o el horario? Responde. {link}",
+    },
+    "offer_reminder_3": {
+        "en": "{first_name}, we can't wait to have you on the road! Sign your offer here: {link}",
+        "es": "¡{first_name}, queremos verte en el camino pronto! Firma tu oferta aquí: {link}",
+    },
+    "offer_reminder_4": {
+        "en": "Hi {first_name}, your Prime Pupil offer is still open. Sign whenever you're ready: {link}",
+        "es": "Hola {first_name}, tu oferta con Prime Pupil sigue abierta. Firma cuando estés listo: {link}",
+    },
+})
+
+# Which template keys make up each stage's rotating reminder.
+REMINDER_SETS = {
+    "screening": ["reminder_1", "reminder_2", "reminder_3", "reminder_4"],
+    "background_check": ["bg_reminder", "bg_reminder_2", "bg_reminder_3", "bg_reminder_4"],
+    "drug_test": ["drug_reminder", "drug_reminder_2", "drug_reminder_3", "drug_reminder_4"],
+    "cdl_permit": ["permit_reminder", "permit_reminder_2", "permit_reminder_3", "permit_reminder_4"],
+    "skills_test": ["skills_reminder", "skills_reminder_2", "skills_reminder_3", "skills_reminder_4"],
+    "offer": ["offer_reminder", "offer_reminder_2", "offer_reminder_3", "offer_reminder_4"],
+}
+
+
+def reminder_key(stage: str, attempt: int) -> str:
+    """1st reminder uses version 1; later ones cycle 2 -> 3 -> 4."""
+    keys = REMINDER_SETS[stage]
+    return keys[0] if attempt <= 1 else keys[1 + (attempt - 2) % (len(keys) - 1)]
