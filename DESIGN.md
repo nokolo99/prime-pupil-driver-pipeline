@@ -373,6 +373,7 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 |---|---|---|
 | Screening questions | — | ✅ Confirmed by John (four automatic fails) |
 | BG vendor offers an ordering API | — | ✅ Confirmed by John (integration for orders + results) |
+| Skills test = the online assessment after training (John: "online assessment platform" with results via integration). If it's actually the in-person CDL road test, the flow is the same with scheduling instead of a link | John didn't specify what it covers | Assumed (state in demo) |
 | Facts sheet: pay $24/hr, paid training at same rate | Placeholder so the agent can answer pay questions; clearly marked in config | Confirm with Prime Pupil |
 | CDL permit runs in parallel with training; candidate self-reports; recruiter verifies a photo before the offer | John: permit isn't shared during the process, recruiter verifies at the end | Decided |
 | Offers are sent via Workday's offer process; we trigger it automatically (Workday Recruiting `Offer` operation) instead of generating our own letter. Our mock e-sign page stands in for it | Terms, templates and approvals stay in Workday; no new work | Assumed (asking John, Q6) |

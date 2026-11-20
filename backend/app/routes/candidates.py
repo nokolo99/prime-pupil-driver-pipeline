@@ -85,8 +85,19 @@ def fyi_flags(session: Session = Depends(get_session)):
 
 @router.get("/tasks")
 def open_tasks(session: Session = Depends(get_session)):
-    return session.exec(select(Task).where(Task.status == TaskStatus.open)
-                        .order_by(Task.priority, Task.created_at)).all()
+    from ..models import PermitCheck
+    tasks = session.exec(select(Task).where(Task.status == TaskStatus.open).order_by(Task.priority, Task.created_at)).all()
+    out = []
+    for t in tasks:
+        row = t.model_dump()
+        if t.type == "review_permit":  # attach the photo the candidate sent, for review
+            st = session.exec(select(Step).where(Step.candidate_id == t.candidate_id, Step.stage == Stage.cdl_permit)
+                              .order_by(Step.id.desc())).first()
+            pc = session.get(PermitCheck, st.id) if st else None
+            row["photo"] = pc.image_path if pc else None
+            row["mismatches"] = pc.mismatches if pc else []
+        out.append(row)
+    return out
 
 
 @router.get("/events")

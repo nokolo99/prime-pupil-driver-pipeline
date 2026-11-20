@@ -122,7 +122,19 @@ export default function CandidateDetail() {
         <section className="space-y-2 rounded-xl border border-rose-200 bg-rose-50 p-4">
           <h3 className="text-sm font-semibold text-rose-900">Needs you</h3>
           {openTasks.map((t) => (
-            <div key={t.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="text-rose-900">{t.reason}</span><TaskActions task={t} onDone={load} /></div>
+            <div key={t.id} className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="text-rose-900">{t.reason}</span><TaskActions task={{ ...t, photo: t.type === "review_permit" ? p?.image_path : undefined }} onDone={load} /></div>
+              {t.type === "review_permit" && p?.image_path && (
+                <div className="flex flex-wrap items-start gap-3 rounded-lg bg-white p-2">
+                  <a href={`/api/sim/media/${p.image_path}`} target="_blank" rel="noreferrer"><img src={`/api/sim/media/${p.image_path}`} alt="Permit photo from candidate" className="max-h-48 rounded border object-contain" /></a>
+                  <div className="text-xs text-stone-600">
+                    <div className="mb-1 font-medium text-stone-800">What the AI read from the photo</div>
+                    {[["Name", p.extracted?.name], ["Permit #", p.extracted?.permit_number], ["Class", p.extracted?.license_class], ["Expires", p.extracted?.expiration_date]].map(([k, v]) => <div key={String(k)}>{k}: <b>{fmt(v)}</b></div>)}
+                    {p.mismatches.length > 0 ? <div className="mt-1 text-rose-700">⚠ {p.mismatches.join("; ")}</div> : <div className="mt-1 text-emerald-700">✓ Matches {c.first_name} {c.last_name}</div>}
+                  </div>
+                </div>
+              )}
+            </div>
           ))}
         </section>
       )}

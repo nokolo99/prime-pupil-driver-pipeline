@@ -157,6 +157,10 @@ def force_stage(r: StageReq, s: Session = Depends(get_session)):
     except ValueError:
         raise HTTPException(422, f"Unknown stage {r.stage}")
     t = now()
+    # Close any open steps first, so jumping around never leaves old tracks (e.g. a second permit track) running.
+    for st in s.exec(select(Step).where(Step.candidate_id == c.id, Step.completed_at == None)).all():  # noqa: E711
+        st.status, st.completed_at = StepStatus.passed, t
+    s.flush()
     existing = {st.stage: st for st in s.exec(select(Step).where(Step.candidate_id == c.id)).all()}
     for stage in STAGE_ORDER[1:STAGE_ORDER.index(target)]:  # skip 'application'
         st = existing.get(stage) or Step(candidate_id=c.id, stage=stage)

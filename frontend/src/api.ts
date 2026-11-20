@@ -16,7 +16,7 @@ export type Candidate = {
   stage: string; status: string; stage_entered_at: string; last_contacted_at: string | null;
   last_reply_at: string | null; workday_id: string | null; created_at: string; drop_reason: string | null;
 };
-export type Task = { id: number; candidate_id: number; type: string; reason: string; priority: number; status: string; created_at: string };
+export type Task = { id: number; candidate_id: number; type: string; reason: string; priority: number; status: string; created_at: string; photo?: string | null; mismatches?: string[] };
 export type Event = { id: number; candidate_id: number; type: string; actor: string; details: Record<string, unknown>; created_at: string };
 export type Message = {
   id: number; direction: "in" | "out"; sender: string; body: string; channel: string;

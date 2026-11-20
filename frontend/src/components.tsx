@@ -55,6 +55,7 @@ export function TaskActions({ task, onDone }: { task: Task; onDone: () => void }
       {["candidate_withdrawing", "offer_declined"].includes(task.type) &&
         <button disabled={busy} className={btn} onClick={() => setPicking("mark_dropped")}>Mark dropped</button>}
       {task.type === "review_permit" && <>
+        {task.photo && <a href={`/api/sim/media/${task.photo}`} target="_blank" rel="noreferrer" className={`${btn} inline-block`}>View photo ↗</a>}
         <button disabled={busy} className={`${btn} border-emerald-600 text-emerald-800`} onClick={() => act("verify_permit")}>Verify permit</button>
         <button disabled={busy} className={btn} onClick={() => act("request_new_photo")}>Request new photo</button>
       </>}

@@ -183,7 +183,15 @@ def tick(s: Session) -> int:
     from .workday import dispatch_outbox
     dispatch_outbox()  # retry any Workday writes that failed
     steps = s.exec(select(Step).where(Step.status == StepStatus.waiting_on_candidate)).all()
+    # Safety net: only the newest step per (candidate, stage) gets reminders.
+    newest = {}
+    for st in s.exec(select(Step)).all():
+        k = (st.candidate_id, st.stage)
+        if k not in newest or st.id > newest[k]:
+            newest[k] = st.id
     for step in steps:
+        if newest.get((step.candidate_id, step.stage)) != step.id:
+            continue
         c = s.get(Candidate, step.candidate_id)
         if not c:
             continue
