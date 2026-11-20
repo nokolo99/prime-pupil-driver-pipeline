@@ -131,7 +131,7 @@ def remaining_questions(sr: ScreeningResult) -> list[dict]:
 
 def intake_applicant(s: Session, *, first_name: str, last_name: str, phone: str, email: Optional[str],
                      depot_id: int, language: str, sms_consent: bool, workday_id: Optional[str],
-                     channel: str = "sms", first_contact: str = "text") -> Candidate:
+                     channel: str = "sms", first_contact: str = "text", live_messages: bool = False) -> Candidate:
     if language not in ("en", "es"):
         language = "en"  # "Other": start in English; we switch as soon as they reply in their language
     recruiter = s.exec(select(Recruiter).where(Recruiter.depot_id == depot_id)).first() \
@@ -141,7 +141,7 @@ def intake_applicant(s: Session, *, first_name: str, last_name: str, phone: str,
                   preferred_language=language, source="workday", workday_id=workday_id,
                   preferred_channel=Channel(channel) if channel in ("sms", "whatsapp") else Channel.sms,
                   stage=Stage.screening, status=CandidateStatus.waiting_on_candidate,
-                  sms_consent_at=now() if sms_consent else None)
+                  sms_consent_at=now() if sms_consent else None, live_messages=live_messages)
     s.add(c)
     s.flush()
 

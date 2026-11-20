@@ -137,7 +137,8 @@ def restart_candidate(r: CandidateReq, s: Session = Depends(get_session)):
     from ..conversation import intake_applicant
     c = _find(s, r.phone)
     info = dict(first_name=c.first_name, last_name=c.last_name, phone=c.phone, email=c.email, depot_id=c.depot_id,
-                language=c.preferred_language, sms_consent=c.sms_consent_at is not None, workday_id=c.workday_id)
+                language=c.preferred_language, sms_consent=c.sms_consent_at is not None, workday_id=c.workday_id,
+                channel=c.preferred_channel.value, live_messages=c.live_messages)  # keep WhatsApp + live setting
     _wipe(s, c)
     s.commit()
     new = intake_applicant(s, **info)
@@ -224,14 +225,22 @@ def force_stage(r: StageReq, s: Session = Depends(get_session)):
         s.add(cur)
         if target == Stage.screening:
             s.flush()
-            if not s.get(ScreeningResult, cur.id):
-                s.add(ScreeningResult(step_id=cur.id))
+            old_sr = s.get(ScreeningResult, cur.id)
+            if old_sr:
+                s.delete(old_sr)  # fresh answers: screening starts over
+                s.flush()
+            s.add(ScreeningResult(step_id=cur.id))
     for task in s.exec(select(Task).where(Task.candidate_id == c.id, Task.status == TaskStatus.open)).all():
         task.status, task.resolution, task.resolved_at = TaskStatus.resolved, "demo_reset", t
     c.stage, c.stage_entered_at = target, t
     c.status = CandidateStatus.hired if target == Stage.hired else CandidateStatus.waiting_on_candidate
     c.drop_reason = c.drop_note = None
     log_event(s, c, "demo_stage_forced", Actor.system, to=target.value)
+    if target == Stage.screening:  # screening starts with the intro, like a new applicant
+        from ..conversation import send, template
+        from ..models import Sender
+        body, en = template("intro", c.preferred_language, first_name=c.first_name)
+        send(s, c, body, en, Sender.system)
     s.commit()
     return {"stage": target.value}
 
@@ -368,11 +377,23 @@ def set_live(r: LiveReq, s: Session = Depends(get_session)):
     """Per candidate: send their texts to the real phone (live) or only show them in the Console (simulated, default)."""
     from ..conversation import log_event
     from ..models import Actor
+    from ..conversation import _deliver_sms
+    from ..models import Channel, Message
     c = _find(s, r.phone)
     c.live_messages = r.live
     log_event(s, c, "live_messages_" + ("on" if r.live else "off"), Actor.system, via="demo")
+    resent = False
+    if r.live:
+        # Catch the phone up: re-send the latest message they haven't actually received (e.g. the intro sent
+        # while they were still simulated), so the live conversation starts from where it is.
+        last = s.exec(select(Message).where(Message.candidate_id == c.id, Message.direction == "out",
+                                            Message.channel.in_([Channel.sms, Channel.whatsapp]))
+                      .order_by(Message.created_at.desc())).first()
+        if last and last.delivery == "simulated":
+            _deliver_sms(s, c, last)
+            resent = True
     s.commit()
-    return {"ok": True, "live": r.live}
+    return {"ok": True, "live": r.live, "resent_latest": resent}
 
 
 @router.post("/candidate/channel")
