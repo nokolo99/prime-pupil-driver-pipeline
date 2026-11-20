@@ -237,6 +237,13 @@ export default function Demo() {
                   </select>
                   <button className={btn} onClick={() => act("/demo/candidate/stage", { phone, stage: forceTo }, `Moved to ${label(forceTo)}.`)}>Jump to stage</button>
                   <button className={btn} onClick={() => { if (confirm("Restart this candidate from scratch?")) act("/demo/candidate/restart", { phone }, "Restarted: intro re-sent."); }}>↺ Restart</button>
+                  <button className={`${btn} text-rose-700`} onClick={async () => {
+                    if (!confirm(`Delete every candidate on ${phone}, with their messages and history? This can't be undone.`)) return;
+                    try {
+                      const r = await api<{ deleted_candidates: number }>("/demo/candidate/delete", { method: "POST", body: JSON.stringify({ phone }) });
+                      setPhone(""); setPicking(true); setNote(`Deleted ${r.deleted_candidates} candidate(s) on ${phone}.`);
+                    } catch (e) { setNote(`⚠ ${(e as Error).message}`); }
+                  }}>🗑 Delete</button>
                 </div>
               </Card>
             </div>

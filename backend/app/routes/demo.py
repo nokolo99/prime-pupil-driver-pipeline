@@ -134,22 +134,42 @@ def _find(s: Session, phone: str):
 @router.post("/candidate/restart")
 def restart_candidate(r: CandidateReq, s: Session = Depends(get_session)):
     """Wipe this candidate's progress and start over as a fresh applicant (same Workday record)."""
-    from sqlmodel import delete
     from ..conversation import intake_applicant
-    from ..models import (BackgroundCheck, Candidate, DrugTest, Event, Message, Offer, PermitCheck, ScreeningResult,
-                          SkillsTest, Step, Task, Training, TrainingSheetRow, WorkdayOutbox)
     c = _find(s, r.phone)
     info = dict(first_name=c.first_name, last_name=c.last_name, phone=c.phone, email=c.email, depot_id=c.depot_id,
                 language=c.preferred_language, sms_consent=c.sms_consent_at is not None, workday_id=c.workday_id)
+    _wipe(s, c)
+    s.commit()
+    new = intake_applicant(s, **info)
+    return {"candidate_id": new.id}
+
+
+def _wipe(s: Session, c) -> None:
+    """Remove a candidate and everything hanging off them (details, messages, events, tasks, outbox)."""
+    from sqlmodel import delete
+    from ..models import (BackgroundCheck, DrugTest, Event, Message, Offer, PermitCheck, ScreeningResult,
+                          SkillsTest, Step, Task, Training, TrainingSheetRow, WorkdayOutbox)
     step_ids = [st.id for st in s.exec(select(Step).where(Step.candidate_id == c.id)).all()]
     for model in (ScreeningResult, BackgroundCheck, DrugTest, PermitCheck, Training, SkillsTest, Offer):
         s.exec(delete(model).where(model.step_id.in_(step_ids)))
     for model in (Step, Message, Event, Task, WorkdayOutbox, TrainingSheetRow):
         s.exec(delete(model).where(model.candidate_id == c.id))
     s.delete(c)
+
+
+@router.post("/candidate/delete")
+def delete_candidate(r: CandidateReq, s: Session = Depends(get_session)):
+    """Delete every candidate on this phone number, plus their fake-Workday applications (test cleanup)."""
+    from ..models import Candidate, MockWorkdayApplication
+    phone = _find(s, r.phone).phone
+    cands = s.exec(select(Candidate).where(Candidate.phone == phone)).all()
+    for c in cands:
+        _wipe(s, c)
+    apps = s.exec(select(MockWorkdayApplication).where(MockWorkdayApplication.phone == phone)).all()
+    for a in apps:
+        s.delete(a)
     s.commit()
-    new = intake_applicant(s, **info)
-    return {"candidate_id": new.id}
+    return {"deleted_candidates": len(cands), "deleted_applications": len(apps)}
 
 
 @router.post("/candidate/stage")
