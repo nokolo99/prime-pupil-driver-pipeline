@@ -5,6 +5,7 @@ import CandidateDetail from "./pages/CandidateDetail";
 import Demo from "./pages/Demo";
 import Insights from "./pages/Insights";
 import TrainingSheet from "./pages/TrainingSheet";
+import Settings from "./pages/Settings";
 import { ClockBanner } from "./components";
 
 const link = ({ isActive }: { isActive: boolean }) =>
@@ -21,6 +22,7 @@ export default function App() {
             <NavLink to="/" end className={link}>Today</NavLink>
             <NavLink to="/pipeline" className={link}>Pipeline</NavLink>
             <NavLink to="/insights" className={link}>Insights</NavLink>
+            <NavLink to="/settings" className={link}>Settings</NavLink>
           </nav>
           <NavLink to="/demo" className="ml-auto text-xs text-stone-500 hover:underline">Demo controls</NavLink>
         </div>
@@ -33,6 +35,7 @@ export default function App() {
           <Route path="/demo" element={<Demo />} />
           <Route path="/insights" element={<Insights />} />
           <Route path="/training-roster" element={<TrainingSheet />} />
+          <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
     </div>

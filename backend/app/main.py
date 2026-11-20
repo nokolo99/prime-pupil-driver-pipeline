@@ -23,7 +23,8 @@ from .db import engine as db_engine  # noqa: E402
 from .engine import tick  # noqa: E402
 from .models import Setting  # noqa: E402
 from . import telephony  # noqa: E402
-from .routes import actions, candidates, chat, demo, insights, intake, mock_workday, sms, vendor, voice, vonage  # noqa: E402
+from .routes import (actions, candidates, chat, demo, insights, intake, mock_workday, settings_api, sms,  # noqa: E402
+                     vendor, voice, vonage)
 from .seed import seed_reference_data  # noqa: E402
 
 
@@ -94,6 +95,7 @@ app.include_router(vendor.router)
 app.include_router(insights.router)
 app.include_router(vonage.router)
 app.include_router(mock_workday.router)
+app.include_router(settings_api.router)
 
 
 @app.get("/api/health")

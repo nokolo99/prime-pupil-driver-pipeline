@@ -105,7 +105,8 @@ def insights(depot_id: Optional[int] = None, recruiter_id: Optional[int] = None,
     # By depot.
     depots = {d.id: d for d in s.exec(select(Depot)).all()}
     open_tasks = Counter(tk.candidate_id for tk in s.exec(select(Task).where(Task.status == TaskStatus.open)).all())
-    from ..config import STAGE_SLA_DAYS
+    from .. import settings
+    STAGE_SLA_DAYS = settings.stage_sla_days()
     by_depot = defaultdict(lambda: {"applied": 0, "active": 0, "hired": 0, "hired_30d": 0, "needs_review": 0, "lost": 0, "stuck": 0, "_tth": []})
     for c in cands:
         row = by_depot[c.depot_id]

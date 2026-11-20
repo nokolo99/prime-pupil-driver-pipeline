@@ -16,8 +16,8 @@ from sqlmodel import Session, select
 from . import telephony
 from datetime import timedelta
 
-from .config import (DEFAULT_FOLLOW_UP, FOLLOW_UP_SCHEDULE, GIVE_UP_AFTER_DAYS, LOCAL_TZ, QUIET_HOURS,
-                     RESULTS_OVERDUE_DAYS)
+from . import settings
+from .config import LOCAL_TZ
 from .conversation import create_task, log_event, send, template
 from .models import (Actor, BackgroundCheck, Candidate, CandidateStatus, Clinic, DrugTest, Offer, Sender, SkillsTest,
                      Stage, Step, StepStatus, Task, TaskStatus, Training, now)
@@ -31,7 +31,7 @@ def _aware(dt: datetime) -> datetime:
 
 def in_quiet_hours(t: datetime) -> bool:
     hour = t.astimezone(ZoneInfo(LOCAL_TZ)).hour
-    start, end = QUIET_HOURS
+    start, end = settings.quiet_hours()
     return hour >= start or hour < end
 
 
@@ -130,7 +130,7 @@ def _overdue(s: Session, t) -> int:
             since = s.get(DrugTest, step.id).collected_at
         else:
             continue
-        limit = RESULTS_OVERDUE_DAYS.get(step.stage.value)
+        limit = settings.results_overdue_days().get(step.stage.value)
         if since and limit and t - _aware(since) > timedelta(days=limit):
             days = (t - _aware(since)).days
             step.flag_note = f"Results overdue ({days} days with vendor)"
@@ -173,16 +173,17 @@ def tick(s: Session) -> int:
         if c.opted_out or c.status in (CandidateStatus.needs_review, CandidateStatus.rejected,
                                        CandidateStatus.dropped, CandidateStatus.hired):
             continue
-        schedule = FOLLOW_UP_SCHEDULE.get(step.stage.value, DEFAULT_FOLLOW_UP)
+        schedule = settings.follow_up_schedule(step.stage.value)
+        give_up = settings.give_up_after_days()
         idle_days = (t - last_activity(c, step)).total_seconds() / 86400
 
         # End of the line: stop reminders, hand to a recruiter (once).
-        if idle_days >= GIVE_UP_AFTER_DAYS:
+        if idle_days >= give_up:
             already = s.exec(select(Task).where(Task.candidate_id == c.id, Task.type == "candidate_unresponsive",
                                                 Task.status == TaskStatus.open)).first()
             if not already:
                 create_task(s, c, "candidate_unresponsive",
-                            f"No response for {GIVE_UP_AFTER_DAYS} days at {step.stage.value.replace('_', ' ')}; "
+                            f"No response for {give_up} days at {step.stage.value.replace('_', ' ')}; "
                             f"{step.nudge_count} reminders sent", priority=2)
                 actions += 1
             continue
@@ -195,6 +196,8 @@ def tick(s: Session) -> int:
             continue
 
         n = step.nudge_count + 1
+        if kind == "call" and not settings.ai_calls_enabled():
+            kind = "sms"  # AI calls turned off in Settings: send a text instead
         if kind == "call" and telephony.voice_ready():
             try:
                 sid = telephony.place_call(c.phone, c.id, "follow_up")

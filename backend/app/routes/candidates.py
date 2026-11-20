@@ -89,9 +89,9 @@ def recent_events(limit: int = 100, session: Session = Depends(get_session)):
 
 @router.get("/config")
 def ui_config():
-    from ..config import STAGE_SLA_DAYS
+    from .. import settings
     from ..models import DropReason
-    return {"stage_sla_days": STAGE_SLA_DAYS, "drop_reasons": [r.value for r in DropReason]}
+    return {"stage_sla_days": settings.stage_sla_days(), "drop_reasons": [r.value for r in DropReason]}
 
 
 @router.get("/lookups")

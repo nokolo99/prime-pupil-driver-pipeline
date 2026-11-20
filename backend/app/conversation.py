@@ -11,7 +11,8 @@ from typing import Optional
 from sqlmodel import Session, select
 
 from . import ai
-from .config import KNOCKOUT_RULES, MAX_CLARIFY_ATTEMPTS, SCREENING_QUESTIONS, TEMPLATES
+from . import settings
+from .config import MAX_CLARIFY_ATTEMPTS, TEMPLATES
 from .models import (
     Actor, Candidate, CandidateStatus, Channel, Event, Message, Recruiter, ScreeningResult,
     Sender, Stage, Step, StepResult, StepStatus, Task, now,
@@ -34,9 +35,10 @@ def create_task(s: Session, candidate: Candidate, type_: str, reason: str, prior
 
 def template(key: str, lang: str, **kw) -> tuple[str, str]:
     """Returns (text in candidate's language, English version)."""
-    en = TEMPLATES[key]["en"].format(**kw)
-    if lang in TEMPLATES[key]:
-        return TEMPLATES[key][lang].format(**kw), en
+    t = settings.template_langs(key) or TEMPLATES[key]  # recruiter-edited wording if any
+    en = t["en"].format(**kw)
+    if lang in t:
+        return t[lang].format(**kw), en
     try:
         return ai.translate(en, lang), en
     except Exception:
@@ -85,7 +87,7 @@ def screening_step(s: Session, candidate: Candidate) -> tuple[Step, ScreeningRes
 def remaining_questions(sr: ScreeningResult) -> list[dict]:
     """Unanswered screening questions, in order. Code decides the order and what counts as done."""
     out = []
-    for q in SCREENING_QUESTIONS:
+    for q in settings.screening_questions():
         if f"Unclear answer: {q['field']}" in (sr.knockout_flags or []):
             continue  # flagged as unclear; recruiter will follow up
         if q["field"] == "years_licensed" and sr.has_valid_license is False:
@@ -169,7 +171,7 @@ def _handle_screening_turn(s: Session, c: Candidate, body: str, channel: Channel
     step, sr = screening_step(s, c)
     step.nudge_count, step.last_nudged_at = 0, None  # candidate is active again: restart follow-ups
     remaining = remaining_questions(sr)
-    answered = {f["field"]: getattr(sr, f["field"]) for f in SCREENING_QUESTIONS if getattr(sr, f["field"]) is not None}
+    answered = {f["field"]: getattr(sr, f["field"]) for f in settings.screening_questions() if getattr(sr, f["field"]) is not None}
 
     try:
         turn = ai.run_turn(first_name=c.first_name, language=c.preferred_language,
@@ -225,7 +227,7 @@ def _handle_screening_turn(s: Session, c: Candidate, body: str, channel: Channel
 
 
 def _finish_screening(s: Session, c: Candidate, step: Step, sr: ScreeningResult, channel: Channel = Channel.web) -> None:
-    flags = [label for field, check, label in KNOCKOUT_RULES if check(getattr(sr, field))]
+    flags = [label for field, check, label in settings.knockout_rules() if check(getattr(sr, field))]
     flags += [f for f in (sr.knockout_flags or []) if f.startswith("Unclear answer")]
     sr.knockout_flags = flags
     step.completed_at = now()
