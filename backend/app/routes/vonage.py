@@ -16,11 +16,21 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/vonage", tags=["vonage (webhooks)"])
 
 
-@router.post("/inbound")
+async def _payload(request: Request) -> dict:
+    """Accept both Vonage formats: Messages API (JSON) and the older SMS API (form/query: msisdn, text)."""
+    if "application/json" in request.headers.get("content-type", ""):
+        return await request.json()
+    data = {**dict(request.query_params), **dict(await request.form())}
+    return {"channel": "sms", "from": data.get("msisdn", ""), "text": data.get("text", ""), "message_type": "text"}
+
+
+@router.api_route("/inbound", methods=["GET", "POST"])
 async def inbound(request: Request, s: Session = Depends(get_session)):
     if not messaging.vonage_valid_webhook(request.headers.get("Authorization", "")):
         raise HTTPException(401, "Invalid Vonage signature")
-    m = await request.json()
+    m = await _payload(request)
+    if not m.get("from"):
+        return Response(status_code=200)  # e.g. Vonage's URL check
     channel = Channel.whatsapp if m.get("channel") == "whatsapp" else Channel.sms
     phone = "+" + str(m.get("from", "")).lstrip("+")
     body = (m.get("text") or (m.get("image") or {}).get("caption") or "").strip()

@@ -34,8 +34,9 @@ def vonage_ready() -> bool:
     return bool(k and s and "paste" not in k and "paste" not in s)
 
 
-def _vonage_base() -> str:
-    sandbox = os.getenv("VONAGE_SANDBOX", "true").lower() == "true"
+def _vonage_base(channel: str) -> str:
+    # The sandbox only covers WhatsApp/Messenger/Viber; SMS always uses the real Messages API.
+    sandbox = os.getenv("VONAGE_SANDBOX", "true").lower() == "true" and channel != "sms"
     return "https://messages-sandbox.nexmo.com/v1/messages" if sandbox else "https://api.nexmo.com/v1/messages"
 
 
@@ -46,7 +47,7 @@ def vonage_send(channel: str, to: str, body: str) -> Optional[str]:
         return None
     sender = os.getenv("VONAGE_WHATSAPP_FROM" if channel == "whatsapp" else "VONAGE_SMS_FROM", "")
     payload = {"message_type": "text", "text": body, "to": to.lstrip("+"), "from": sender.lstrip("+"), "channel": channel}
-    r = httpx.post(_vonage_base(), json=payload, auth=(os.environ["VONAGE_API_KEY"], os.environ["VONAGE_API_SECRET"]), timeout=15)
+    r = httpx.post(_vonage_base(channel), json=payload, auth=(os.environ["VONAGE_API_KEY"], os.environ["VONAGE_API_SECRET"]), timeout=15)
     if r.status_code >= 300:
         raise RuntimeError(f"Vonage {r.status_code}: {r.text[:200]}")
     return r.json().get("message_uuid")
