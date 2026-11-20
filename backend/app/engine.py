@@ -69,7 +69,9 @@ def _training_reminders(s: Session, t) -> int:
     actions = 0
     for tr in s.exec(select(Training).where(Training.completed_at == None)).all():  # noqa: E711
         step = s.get(Step, tr.step_id)
-        c = s.get(Candidate, step.candidate_id)
+        c = s.get(Candidate, step.candidate_id) if step else None
+        if not c:
+            continue
         if c.opted_out or c.stage != Stage.training or in_quiet_hours(t):
             continue
         start = _aware(tr.cohort_start)
@@ -95,7 +97,9 @@ def _appointments(s: Session, t) -> int:
     rows = s.exec(select(DrugTest).where(DrugTest.appointment_at != None, DrugTest.collected_at == None)).all()  # noqa: E711
     for dt in rows:
         step = s.get(Step, dt.step_id)
-        c = s.get(Candidate, step.candidate_id)
+        c = s.get(Candidate, step.candidate_id) if step else None
+        if not c:
+            continue
         if c.opted_out or step.status != StepStatus.waiting_on_candidate:
             continue
         appt = _aware(dt.appointment_at)
@@ -158,12 +162,25 @@ def _watch_training_sheet(s: Session) -> int:
 def tick(s: Session) -> int:
     """Returns how many actions were taken."""
     t = now()
-    actions = _appointments(s, t) + _overdue(s, t) + _training_reminders(s, t) + _watch_training_sheet(s)
+    actions = 0
+    for part in (_appointments, _overdue, _training_reminders):  # one bad record must never stop the whole tick
+        try:
+            actions += part(s, t)
+        except Exception:
+            log.exception("engine: %s failed", part.__name__)
+            s.rollback()
+    try:
+        actions += _watch_training_sheet(s)
+    except Exception:
+        log.exception("engine: training sheet watch failed")
+        s.rollback()
     from .workday import dispatch_outbox
     dispatch_outbox()  # retry any Workday writes that failed
     steps = s.exec(select(Step).where(Step.status == StepStatus.waiting_on_candidate)).all()
     for step in steps:
         c = s.get(Candidate, step.candidate_id)
+        if not c:
+            continue
         if step.stage != c.stage and step.stage != Stage.cdl_permit:
             continue  # the permit is a parallel track, so it's nudged whatever stage they're in
         if step.stage == Stage.drug_test:

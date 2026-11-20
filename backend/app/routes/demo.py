@@ -34,8 +34,9 @@ def advance_clock(a: Advance, s: Session = Depends(get_session)):
     """Move time forward in 2-hour steps, running the engine after each, so every reminder
     that would have fired in that window fires in order (and quiet hours are respected)."""
     actions = 0
-    for _ in range(a.days * 12):
-        clock.set_offset(clock.offset_days() + 1 / 12)
+    start_hours = round(clock.offset_days() * 24)   # whole hours, so +1 day lands on exactly +1.0
+    for i in range(1, a.days * 12 + 1):
+        clock.set_offset((start_hours + 2 * i) / 24)
         actions += tick(s)
     save_offset(s)
     return {"offset_days": clock.offset_days(), "actions": actions}
@@ -127,15 +128,15 @@ def restart_candidate(r: CandidateReq, s: Session = Depends(get_session)):
     """Wipe this candidate's progress and start over as a fresh applicant (same Workday record)."""
     from sqlmodel import delete
     from ..conversation import intake_applicant
-    from ..models import (BackgroundCheck, Candidate, DrugTest, Event, Message, ScreeningResult, Step, Task,
-                          WorkdayOutbox)
+    from ..models import (BackgroundCheck, Candidate, DrugTest, Event, Message, Offer, PermitCheck, ScreeningResult,
+                          SkillsTest, Step, Task, Training, TrainingSheetRow, WorkdayOutbox)
     c = _find(s, r.phone)
     info = dict(first_name=c.first_name, last_name=c.last_name, phone=c.phone, email=c.email, depot_id=c.depot_id,
                 language=c.preferred_language, sms_consent=c.sms_consent_at is not None, workday_id=c.workday_id)
     step_ids = [st.id for st in s.exec(select(Step).where(Step.candidate_id == c.id)).all()]
-    for model in (ScreeningResult, BackgroundCheck, DrugTest):
+    for model in (ScreeningResult, BackgroundCheck, DrugTest, PermitCheck, Training, SkillsTest, Offer):
         s.exec(delete(model).where(model.step_id.in_(step_ids)))
-    for model in (Step, Message, Event, Task, WorkdayOutbox):
+    for model in (Step, Message, Event, Task, WorkdayOutbox, TrainingSheetRow):
         s.exec(delete(model).where(model.candidate_id == c.id))
     s.delete(c)
     s.commit()
