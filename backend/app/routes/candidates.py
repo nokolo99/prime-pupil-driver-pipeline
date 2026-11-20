@@ -15,6 +15,7 @@ def list_candidates(depot_id: int | None = None, recruiter_id: int | None = None
                     channel: str | None = None, status: str | None = None, days: int | None = None,
                     stage: str | None = None, reason: str | None = None, applied_from: str | None = None,
                     applied_to: str | None = None, hired_from: str | None = None, hired_to: str | None = None,
+                    q: str | None = None, exclude_seed: bool = False, limit: int | None = None,
                     session: Session = Depends(get_session)):
     """Pipeline list. Same filters as Insights so a chart bar can click through to the exact candidates."""
     from .insights import filtered
@@ -24,7 +25,13 @@ def list_candidates(depot_id: int | None = None, recruiter_id: int | None = None
         cands = [c for c in cands if c.stage.value == stage]
     if reason:
         cands = [c for c in cands if c.drop_reason and c.drop_reason.value == reason]
-    return sorted(cands, key=lambda c: c.created_at, reverse=True)
+    if exclude_seed:
+        cands = [c for c in cands if c.source != "demo_seed"]
+    if q:
+        ql, digits = q.lower(), "".join(ch for ch in q if ch.isdigit())
+        cands = [c for c in cands if ql in f"{c.first_name} {c.last_name}".lower() or (digits and digits in c.phone)]
+    out = sorted(cands, key=lambda c: c.created_at, reverse=True)
+    return out[:limit] if limit else out
 
 
 @router.get("/candidates/{candidate_id}")

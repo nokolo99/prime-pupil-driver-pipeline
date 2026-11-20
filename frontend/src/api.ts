@@ -12,7 +12,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type Candidate = {
   id: number; first_name: string; last_name: string; phone: string;
-  preferred_language: string; depot_id: number | null; recruiter_id: number | null;
+  preferred_language: string; preferred_channel?: string; depot_id: number | null; recruiter_id: number | null;
   stage: string; status: string; stage_entered_at: string; last_contacted_at: string | null;
   last_reply_at: string | null; workday_id: string | null; created_at: string; drop_reason: string | null;
 };

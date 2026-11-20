@@ -1,278 +1,274 @@
 import { useEffect, useRef, useState } from "react";
-import { api, label, STAGES, type Lookups, type Message } from "../api";
-import { Linkify } from "../components";
+import { Link, useSearchParams } from "react-router-dom";
+import { api, label, STAGES, type Candidate, type Message } from "../api";
+import { Linkify, StatusPill } from "../components";
 
-// Demo control panel: drives the story. Not part of the recruiter product.
+// Demo console: everything here acts on ONE selected candidate (picked at the top), so the phone and the
+// controls can never drift apart. New applicants are created on the "New applicant" page.
+
+type Email = { from: string; subject: string; body: string };
+type VCtx = {
+  stage: string; status: string; candidate_id?: number;
+  bg: null | { order_id: string; form_link: string; form_completed: boolean; report_status: string; email_clear: Email; email_flagged: Email };
+  drug: null | { case_id: string; booking_link: string; appointment_at: string | null; collected: boolean; result: string | null };
+  skills?: { test_id: string; link: string; result: string | null; attempts: number };
+  offer?: { offer_id: string; link: string; signed: boolean; declined: boolean };
+};
+
+const btn = "rounded-lg border bg-white px-3 py-1.5 text-sm hover:bg-stone-50 disabled:opacity-40";
+const linkBtn = `${btn} inline-block`;
+
+function Card({ title, children, hint }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-xl border bg-white p-4">
+      <h3 className="font-semibold">{title}</h3>
+      {hint && <p className="mb-3 text-xs text-stone-500">{hint}</p>}
+      <div className={hint ? "" : "mt-3"}>{children}</div>
+    </section>
+  );
+}
+
 export default function Demo() {
-  const [lk, setLk] = useState<Lookups>({ depots: [], recruiters: [] });
-  const [form, setForm] = useState({ first_name: "Maria", last_name: "Gonzalez", phone: "+15550001111", depot_id: 1, language: "en", sms_consent: true, channel: "whatsapp" });
-  const [phone, setPhone] = useState("+15550001111");
-  const [msgs, setMsgs] = useState<Message[]>([]);
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState("");
-  const end = useRef<HTMLDivElement>(null);
+  const [params, setParams] = useSearchParams();
+  const phone = params.get("phone") ?? "";
+  const setPhone = (p: string) => setParams(p ? { phone: p } : {});
 
-  const [outbox, setOutbox] = useState<{ id: number; workday_id: string | null; action: string; payload: Record<string, unknown>; status: string }[]>([]);
-  const [wdApps, setWdApps] = useState<{ id: number; job_application_id: string; candidate_id: string; first_name: string; last_name: string; job_requisition_id: string; current_step: string; disposition: string | null }[]>([]);
-  useEffect(() => { api<Lookups>("/lookups").then(setLk); }, []);
+  // ---- candidate picker ----
+  const [q, setQ] = useState("");
+  const [options, setOptions] = useState<Candidate[]>([]);
+  const [picking, setPicking] = useState(!phone);
   useEffect(() => {
-    const load = () => {
-      api<typeof outbox>("/demo/workday-outbox").then(setOutbox);
-      fetch("/mock-workday/applications").then((r) => r.json()).then(setWdApps).catch(() => {});
-    };
-    load();
-    const t = setInterval(load, 3000);
-    return () => clearInterval(t);
-  }, []);
+    const t = setTimeout(() => {
+      api<Candidate[]>(`/candidates?limit=20${q ? `&q=${encodeURIComponent(q)}` : "&exclude_seed=true"}`).then(setOptions).catch(() => setOptions([]));
+    }, 200);
+    return () => clearTimeout(t);
+  }, [q, phone]);
 
-  async function skip(days: number) {
-    setNote(`Skipping ahead ${days} day(s)…`);
-    const r = await api<{ offset_days: number; actions: number }>("/demo/clock/advance", { method: "POST", body: JSON.stringify({ days }) });
-    setNote(`Simulated time is now +${r.offset_days} days. The engine took ${r.actions} action(s).`);
-  }
-  const [voice, setVoice] = useState<{ ready: boolean; workday_intake?: string } | null>(null);
-  useEffect(() => {
-    const load = () => { api<{ ready: boolean; workday_intake?: string }>("/demo/voice-status").then(setVoice).catch(() => setVoice({ ready: false })); };
-    load();
-    const t = setInterval(load, 5000);
-    return () => clearInterval(t);
-  }, []);
-  async function callNow() {
-    try { await api("/demo/call", { method: "POST", body: JSON.stringify({ phone }) }); setNote(`Calling ${phone}… answer your phone!`); }
-    catch (e) { setNote(`⚠ ${(e as Error).message}`); }
-  }
-
-  const [forceTo, setForceTo] = useState("screening");
-  async function restartCandidate() {
-    if (!confirm(`Restart ${phone} from scratch? Their conversation and progress will be cleared.`)) return;
-    try { await api("/demo/candidate/restart", { method: "POST", body: JSON.stringify({ phone }) }); setNote(`Restarted ${phone}: intro re-sent.`); }
-    catch (e) { setNote(`⚠ ${(e as Error).message}`); }
-  }
-  async function forceStage() {
-    try { await api("/demo/candidate/stage", { method: "POST", body: JSON.stringify({ phone, stage: forceTo }) }); setNote(`${phone} moved to ${label(forceTo)}.`); }
-    catch (e) { setNote(`⚠ ${(e as Error).message}`); }
-  }
-
-  type Email = { from: string; subject: string; body: string };
-  type VCtx = { stage: string; status: string;
-    bg: null | { order_id: string; form_link: string; form_completed: boolean; report_status: string; email_clear: Email; email_flagged: Email };
-    drug: null | { case_id: string; booking_link: string; appointment_at: string | null; collected: boolean; result: string | null };
-    skills?: { test_id: string; link: string; result: string | null; attempts: number };
-    offer?: { offer_id: string; link: string; signed: boolean; declined: boolean };
-    candidate_id?: number };
+  // ---- selected candidate state ----
+  const [cand, setCand] = useState<Candidate | null>(null);
   const [vctx, setVctx] = useState<VCtx | null>(null);
-  const [email, setEmail] = useState<Email | null>(null);
+  const [msgs, setMsgs] = useState<Message[]>([]);
+  const [note, setNote] = useState(params.get("new") ? "Application submitted. Waiting for it to arrive from Workday…" : "");
   useEffect(() => {
-    const load = () => { api<VCtx>(`/demo/vendor-context?phone=${encodeURIComponent(phone)}`).then(setVctx).catch(() => setVctx(null)); };
-    load();
-    const t = setInterval(load, 3000);
-    return () => clearInterval(t);
-  }, [phone]);
-  async function sendEmail(e: Email) {
-    setNote("Vendor email received. Claude is reading it…");
-    try {
-      const r = await api<{ processed: boolean; parsed: { status: string; summary: string } }>("/integrations/bg-vendor/email", { method: "POST", body: JSON.stringify({ sender: e.from, subject: e.subject, body: e.body }) });
-      setNote(r.processed ? `Email read: ${r.parsed.status.toUpperCase()}. ${r.parsed.summary}` : "Couldn't match/read the email → sent to a recruiter.");
-      setEmail(null);
-    } catch (err) { setNote(`⚠ ${(err as Error).message}`); }
-  }
-  async function drugEvent(event: string, result?: string) {
-    if (!vctx?.drug) return;
-    try { await api("/integrations/drug-vendor/webhook", { method: "POST", body: JSON.stringify({ case_id: vctx.drug.case_id, event, result }) }); setNote(`Drug test vendor: ${label(event)}${result ? ` (${result})` : ""}`); }
-    catch (err) { setNote(`⚠ ${(err as Error).message}`); }
-  }
-
-  async function later(path: string, body: object, msg: string) {
-    try { await api(path, { method: "POST", body: JSON.stringify(body) }); setNote(msg); }
-    catch (err) { setNote(`⚠ ${(err as Error).message}`); }
-  }
-  async function uploadPhoto(f: File) {
-    const fd = new FormData(); fd.append("phone", phone); fd.append("photo", f);
-    const r = await fetch("/api/sim/inbound-photo", { method: "POST", body: fd });
-    setNote(r.ok ? "Photo sent from the candidate's phone." : `⚠ ${await r.text()}`);
-  }
-
-  async function resetClock() { await api("/demo/clock/reset", { method: "POST" }); setNote("Clock reset to real time."); }
-  useEffect(() => {
-    const load = () => api<Message[]>(`/sim/messages?phone=${encodeURIComponent(phone)}`).then(setMsgs);
+    if (!phone) { setCand(null); setVctx(null); setMsgs([]); return; }
+    const load = () => {
+      api<Message[]>(`/sim/messages?phone=${encodeURIComponent(phone)}`).then(setMsgs).catch(() => setMsgs([]));
+      api<VCtx>(`/demo/vendor-context?phone=${encodeURIComponent(phone)}`).then((v) => {
+        setVctx(v);
+        if (v.candidate_id) api<{ candidate: Candidate }>(`/candidates/${v.candidate_id}`).then((d) => setCand(d.candidate));
+      }).catch(() => { setVctx(null); setCand(null); });
+    };
     load();
     const t = setInterval(load, 1500);
     return () => clearInterval(t);
   }, [phone]);
-  useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
+  useEffect(() => { if (cand && note.startsWith("Application submitted")) setNote(`${cand.first_name} arrived from Workday. The first message is on their phone.`); }, [cand]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function apply() {
-    if (voice?.workday_intake === "poll") {
-      // Realistic path: the candidate applies in (fake) Workday; our connector polls Get_Candidates and picks them up.
-      try {
-        const res = await fetch("/mock-workday/career-site/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-          first_name: form.first_name, last_name: form.last_name, phone: form.phone, depot_id: form.depot_id,
-          preferred_language: form.language, sms_consent: form.sms_consent, contact_channel: form.channel }) });
-        if (!res.ok) throw new Error(await res.text());
-        const r = await res.json() as { job_application_id: string };
-        setPhone(form.phone);
-        setNote(`Applied in Workday (${r.job_application_id}). Our connector polls Workday every few seconds and will pick it up…`);
-      } catch (e) { setNote(`⚠ ${(e as Error).message}`); }
-      return;
-    }
-    const workday_id = `WD-${Math.floor(1000 + Math.random() * 9000)}`;
-    let r: { candidate_id: number; phone: string };
-    try { r = await api("/integrations/workday/applicant", { method: "POST", body: JSON.stringify({ ...form, workday_id }) }); }
-    catch (e) { setNote(`⚠ ${(e as Error).message}`); return; }
-    setPhone(r.phone);
-    setNote(`Workday applicant ${workday_id} received directly → candidate #${r.candidate_id}`);
+  // ---- voice status ----
+  const [voiceReady, setVoiceReady] = useState(false);
+  useEffect(() => {
+    const load = () => { api<{ ready: boolean }>("/demo/voice-status").then((v) => setVoiceReady(v.ready)).catch(() => setVoiceReady(false)); };
+    load(); const t = setInterval(load, 5000); return () => clearInterval(t);
+  }, []);
+
+  // ---- actions ----
+  async function act(path: string, body: unknown, msg: string, method = "POST") {
+    try { await api(path, { method, body: body === undefined ? undefined : JSON.stringify(body) }); setNote(msg); }
+    catch (e) { setNote(`⚠ ${(e as Error).message}`); }
   }
+  const [email, setEmail] = useState<Email | null>(null);
+  async function sendEmail(e: Email) {
+    setNote("Vendor email received. Claude is reading it…");
+    try {
+      const r = await api<{ processed: boolean; parsed: { status: string; summary: string } }>("/integrations/bg-vendor/email", { method: "POST", body: JSON.stringify({ sender: e.from, subject: e.subject, body: e.body }) });
+      setNote(r.processed ? `Email read: ${r.parsed.status.toUpperCase()}. ${r.parsed.summary}` : "Couldn't read the email → sent to a recruiter."); setEmail(null);
+    } catch (err) { setNote(`⚠ ${(err as Error).message}`); }
+  }
+  const drug = (event: string, result?: string) => vctx?.drug && act("/integrations/drug-vendor/webhook", { case_id: vctx.drug.case_id, event, result }, `Drug test vendor: ${label(event)}${result ? ` (${result.replace("_", "-")})` : ""}`);
+  const [forceTo, setForceTo] = useState("background_check");
+  const [showEnv, setShowEnv] = useState(false);
 
+  // ---- phone ----
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const thread = useRef<HTMLDivElement>(null);
+  // Scroll only the phone's thread (scrollIntoView would scroll the whole page).
+  useEffect(() => { const el = thread.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs.length, busy]);
   async function send() {
-    if (!text.trim() || busy) return;
+    if (!text.trim() || busy || !phone) return;
     const body = text; setText(""); setBusy(true);
     try { await api("/sim/inbound", { method: "POST", body: JSON.stringify({ phone, body }) }); }
-    catch (e) { setNote(String(e)); }
-    finally { setBusy(false); }
+    catch (e) { setNote(`⚠ ${(e as Error).message}`); } finally { setBusy(false); }
+  }
+  async function uploadPhoto(file: File) {
+    const fd = new FormData(); fd.append("phone", phone); fd.append("photo", file);
+    const r = await fetch("/api/sim/inbound-photo", { method: "POST", body: fd });
+    setNote(r.ok ? "Photo sent from the candidate's phone." : `⚠ ${await r.text()}`);
   }
 
-  const input = "w-full rounded border px-2 py-1 text-sm";
+  const stage = vctx?.stage ?? "";
+  const permitStages = ["training", "skills_test", "offer"];
+
   return (
-    <div className="grid gap-8 md:grid-cols-2">
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Simulate: new Workday applicant</h2>
-        <p className="text-sm text-stone-500">{voice?.workday_intake === "poll"
-          ? "Mode: poll. This applies in a fake Workday; our connector picks it up with Get_Candidates, like production."
-          : "Mode: direct. This posts the applicant straight into our system (shortcut)."} <span className="text-stone-400">(WORKDAY_INTAKE in .env)</span></p>
-        <div className="grid grid-cols-2 gap-2 rounded-lg border bg-white p-3">
-          <input className={input} placeholder="First name" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
-          <input className={input} placeholder="Last name" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
-          <input className={`${input} col-span-2`} placeholder="Mobile phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-          <select className={input} value={form.depot_id} onChange={(e) => setForm({ ...form, depot_id: Number(e.target.value) })}>
-            {lk.depots.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.city})</option>)}
-          </select>
-          <select className={input} value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })}>
-            <option value="en">English</option><option value="es">Español</option><option value="other">Other</option>
-          </select>
-          <select className={`${input} col-span-2`} value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })}>
-            <option value="whatsapp">Texts via WhatsApp (works on real phones today)</option>
-            <option value="sms">Texts via SMS (needs carrier approval)</option>
-          </select>
-          <label className="col-span-2 flex items-center gap-2 text-xs text-stone-600">
-            <input type="checkbox" checked={form.sms_consent} onChange={(e) => setForm({ ...form, sms_consent: e.target.checked })} />
-            Candidate agreed to receive texts about their application
-          </label>
-          <button className="col-span-2 rounded bg-emerald-800 py-1.5 text-sm text-white" onClick={apply}>Submit application</button>
-        </div>
-        {note && <p className="text-xs text-stone-600">{note}</p>}
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div><h2 className="text-lg font-semibold">Demo console</h2><p className="text-xs text-stone-500">Pick a candidate, then act as them (phone) or as the outside world (vendors, time). New applicants: <Link to="/apply" className="underline">New applicant page</Link>.</p></div>
+      </div>
 
-        <h2 className="pt-4 text-lg font-semibold">Simulate: time passing</h2>
-        <p className="text-sm text-stone-500">Moves the system clock forward so follow-ups fire as if days went by.</p>
-        <div className="flex flex-wrap gap-2">
-          {[1, 3, 7, 30, 90].map((d) => <button key={d} className="rounded border bg-white px-3 py-1 text-sm hover:bg-stone-100" onClick={() => skip(d)}>+{d} day{d > 1 ? "s" : ""}</button>)}
-          <button className="rounded px-3 py-1 text-sm text-stone-500 hover:underline" onClick={resetClock}>Reset clock</button>
-        </div>
-
-        <h2 className="pt-4 text-lg font-semibold">Simulate: vendors</h2>
-        <p className="text-sm text-stone-500">Events the background-check and drug-test vendors would send for this candidate{vctx ? ` (now: ${label(vctx.stage)} · ${label(vctx.status)})` : ""}.</p>
-        <div className="space-y-2 rounded-lg border bg-white p-3 text-sm">
-          <div className="font-medium">Background check {vctx?.bg ? <span className="font-mono text-xs text-stone-500">{vctx.bg.order_id} · {label(vctx.bg.report_status)}</span> : <span className="text-xs text-stone-400">(not started)</span>}</div>
-          {vctx?.bg && <div className="flex flex-wrap gap-2">
-            <a className="rounded border px-2 py-1 hover:bg-stone-100" href={vctx.bg.form_link} target="_blank" rel="noreferrer">Open candidate form ↗</a>
-            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => later("/integrations/bg-vendor/webhook", { order_id: vctx.bg!.order_id, event: "result", status: "clear" }, "Vendor integration: background check CLEAR")}>Result (integration): clear</button>
-            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => later("/integrations/bg-vendor/webhook", { order_id: vctx.bg!.order_id, event: "result", status: "consider", summary: "1 reckless driving violation (2024-03-11)" }, "Vendor integration: background check needs review")}>Result (integration): flagged</button>
-            <span className="self-center text-xs text-stone-400">Fallback:</span>
-            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => setEmail(vctx.bg!.email_clear)}>Result email: clear</button>
-            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => setEmail(vctx.bg!.email_flagged)}>Result email: flagged</button>
-          </div>}
-          {email && <div className="space-y-1 rounded border bg-stone-50 p-2">
-            <div className="text-xs text-stone-500">From: {email.from}</div>
-            <input className={input} value={email.subject} onChange={(e) => setEmail({ ...email, subject: e.target.value })} />
-            <textarea className={`${input} h-36 font-mono text-xs`} value={email.body} onChange={(e) => setEmail({ ...email, body: e.target.value })} />
-            <div className="flex gap-2"><button className="rounded bg-emerald-800 px-3 py-1 text-white" onClick={() => sendEmail(email)}>Deliver email</button><button className="text-stone-500" onClick={() => setEmail(null)}>Cancel</button></div>
-          </div>}
-          <div className="pt-2 font-medium">Drug test {vctx?.drug ? <span className="font-mono text-xs text-stone-500">{vctx.drug.case_id}{vctx.drug.appointment_at ? " · booked" : ""}{vctx.drug.collected ? " · collected" : ""}{vctx.drug.result ? ` · ${vctx.drug.result}` : ""}</span> : <span className="text-xs text-stone-400">(not started)</span>}</div>
-          {vctx?.drug && <div className="flex flex-wrap gap-2">
-            <a className="rounded border px-2 py-1 hover:bg-stone-100" href={vctx.drug.booking_link} target="_blank" rel="noreferrer">Open booking page ↗</a>
-            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => drugEvent("no_show")}>Missed appointment</button>
-            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => drugEvent("collected")}>Sample collected</button>
-            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => drugEvent("result", "negative")}>Result: negative</button>
-            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => drugEvent("result", "non_negative")}>Result: non-negative</button>
-          </div>}
-          <div className="pt-2 font-medium">Training (+ CDL permit in parallel) → skills test → permit verified → offer</div>
-          <div className="flex flex-wrap gap-2">
-            <a className="rounded border px-2 py-1 hover:bg-stone-100" href="/training-roster" target="_blank" rel="noreferrer">Trainer's roster ↗</a>
-            <button disabled={!["training", "skills_test"].includes(vctx?.stage ?? "")} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later("/demo/candidate/says-permit", { phone }, "Candidate says they have their permit: reminders stop.")}>Candidate: "I have my permit"</button>
-            <button disabled={!["training", "skills_test", "offer"].includes(vctx?.stage ?? "")} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later("/demo/send-sample-permit", { phone }, "Sample permit photo sent. Claude is reading it…")}>Send sample permit photo</button>
-            <a className="rounded border px-2 py-1 hover:bg-stone-100" href={`/api/demo/sample-permit?phone=${encodeURIComponent(phone)}`} target="_blank" rel="noreferrer">View sample permit ↗</a>
-            <button disabled={!vctx?.skills || vctx.stage !== "skills_test"} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later("/integrations/skills-platform/webhook", { test_id: vctx?.skills?.test_id, result: "pass", score: 91 }, "Skills platform: PASS (91)")}>Skills test: pass</button>
-            <button disabled={!vctx?.skills || vctx.stage !== "skills_test"} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later("/integrations/skills-platform/webhook", { test_id: vctx?.skills?.test_id, result: "fail", score: 62 }, "Skills platform: FAIL (62)")}>Skills test: fail</button>
-            {vctx?.offer && <a className="rounded border px-2 py-1 hover:bg-stone-100" href={vctx.offer.link} target="_blank" rel="noreferrer">Open offer ↗</a>}
-          </div>
-        </div>
-
-        <h2 className="pt-4 text-lg font-semibold">Candidate controls</h2>
-        <p className="text-sm text-stone-500">Acts on the candidate whose phone is selected on the right.</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="rounded border bg-white px-3 py-1 text-sm hover:bg-stone-100" onClick={restartCandidate}>↺ Restart from scratch</button>
-          <select className="rounded border bg-white px-2 py-1 text-sm" value={forceTo} onChange={(e) => setForceTo(e.target.value)}>
-            {STAGES.filter((st) => st !== "application").map((st) => <option key={st} value={st}>{label(st)}</option>)}
-          </select>
-          <button className="rounded border bg-white px-3 py-1 text-sm hover:bg-stone-100" onClick={forceStage}>Jump to stage</button>
-        </div>
-
-        <h2 className="pt-4 text-lg font-semibold">Demo data</h2>
-        <p className="text-sm text-stone-500">~1,500 realistic candidates over 150 days across 12 depots (fictional 555-01XX numbers, never texted or called).</p>
-        <div className="flex gap-2">
-          <button className="rounded border bg-white px-3 py-1 text-sm hover:bg-stone-100" onClick={() => later("/demo/seed", {}, "Demo data loaded.")}>Load demo data</button>
-          <button className="rounded border bg-white px-3 py-1 text-sm hover:bg-stone-100" onClick={() => later("/demo/seed/clear", {}, "Demo data cleared.")}>Clear demo data</button>
-        </div>
-
-        <h2 className="pt-4 text-lg font-semibold">Workday: what we sent</h2>
-        <p className="text-sm text-stone-500">Our connector's calls to Workday (outbox: recorded with each change, delivered right after, retried if Workday is down).</p>
-        <div className="max-h-48 divide-y overflow-y-auto rounded-lg border bg-white text-xs">
-          {outbox.length === 0 && <p className="p-3 text-stone-500">Nothing sent yet.</p>}
-          {outbox.map((o) => (
-            <div key={o.id} className="flex gap-2 p-2 font-mono">
-              <span className={`w-14 shrink-0 ${o.status === "sent" ? "text-emerald-700" : o.status === "failed" ? "text-rose-700" : "text-stone-400"}`}>{o.status}</span>
-              <span className="w-20 shrink-0">{o.workday_id ?? "—"}</span>
-              <span className="w-28 shrink-0 font-semibold">{o.action}</span>
-              <span className="truncate text-stone-600">{String(o.payload.next_step ?? o.payload.disposition ?? (o.action === "Offer" ? "start offer" : ""))}</span>
+      {/* Candidate picker */}
+      <section className="rounded-xl border bg-white p-4">
+        {cand && !picking ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 font-semibold text-emerald-900">{cand.first_name[0]}{cand.last_name?.[0] ?? ""}</div>
+            <div className="mr-auto">
+              <div className="font-semibold">{cand.first_name} {cand.last_name} <span className="ml-1 text-sm font-normal text-stone-500">{cand.phone} · {cand.preferred_language.toUpperCase()} · {cand.preferred_channel === "whatsapp" ? "WhatsApp" : "SMS"}</span></div>
+              <div className="mt-0.5 flex items-center gap-2 text-sm"><span className="font-medium">{label(cand.stage)}</span><StatusPill status={cand.status} /></div>
             </div>
-          ))}
-        </div>
-
-        <h2 className="pt-4 text-lg font-semibold">Fake Workday: job applications</h2>
-        <p className="text-sm text-stone-500">What Prime Pupil's Workday would show. Steps update as our connector calls Move_Candidate / Offer.</p>
-        <div className="max-h-56 overflow-y-auto rounded-lg border bg-white text-xs">
-          <table className="w-full"><thead className="text-left text-stone-500"><tr><th className="p-2">Application</th><th>Candidate</th><th>Requisition</th><th>Step</th><th>Disposition</th></tr></thead>
-            <tbody className="divide-y">
-              {wdApps.length === 0 && <tr><td colSpan={5} className="p-2 text-stone-500">No applications yet (WORKDAY_INTAKE=poll).</td></tr>}
-              {wdApps.map((a) => <tr key={a.id}><td className="p-2 font-mono">{a.job_application_id}</td><td>{a.first_name} {a.last_name}</td><td className="font-mono">{a.job_requisition_id}</td>
-                <td className="font-medium">{a.current_step}</td><td className="text-rose-700">{a.disposition ?? ""}</td></tr>)}
-            </tbody></table>
-        </div>
+            <Link to={`/candidates/${cand.id}`} className="text-sm text-emerald-800 underline">Open recruiter view →</Link>
+            <button className={btn} onClick={() => { setPicking(true); setQ(""); }}>Change candidate</button>
+          </div>
+        ) : (
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <input autoFocus className="flex-1 rounded-lg border px-3 py-2 text-sm" placeholder="Search by name or phone (demo data included when searching)…" value={q} onChange={(e) => setQ(e.target.value)} />
+              {cand && <button className={btn} onClick={() => setPicking(false)}>Cancel</button>}
+            </div>
+            <div className="max-h-56 divide-y overflow-y-auto rounded-lg border text-sm">
+              {options.length === 0 && <p className="p-3 text-stone-500">{q ? "No matches." : "No live candidates yet. Create one on the New applicant page."}</p>}
+              {options.map((o) => (
+                <button key={o.id} className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-stone-50" onClick={() => { setPhone(o.phone); setPicking(false); setNote(""); }}>
+                  <span className="w-44 font-medium">{o.first_name} {o.last_name}</span><span className="w-32 text-stone-500">{o.phone}</span>
+                  <span className="w-32">{label(o.stage)}</span><StatusPill status={o.status} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {note && <p className="mt-3 rounded-lg bg-stone-50 px-3 py-2 text-sm text-stone-700">{note}</p>}
       </section>
 
-      <section>
-        <h2 className="mb-2 text-lg font-semibold">Candidate's phone</h2>
-        <div className="mb-2 flex gap-2">
-          <input className={input} value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <button title="AI calls this number now"
-            className="whitespace-nowrap rounded bg-sky-700 px-3 text-sm text-white hover:bg-sky-800" onClick={callNow}>📞 Call me now</button>
-        </div>
-        <p className="mb-1 text-xs">{voice?.ready ? <span className="text-emerald-700">● Voice ready</span> : <span className="text-rose-700">● Voice not connected (backend or tunnel down)</span>}</p>
-        <p className="mb-2 text-xs text-stone-500">Texts appear below. Voice calls go to the real phone number; their transcript shows here and on the candidate page.</p>
-        <div className="mx-auto w-80 rounded-[2rem] border-8 border-stone-800 bg-white">
-          <div className="h-[28rem] space-y-2 overflow-y-auto p-3">
-            {msgs.map((m) => (
-              <div key={m.id} className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${m.direction === "in" ? "ml-auto bg-sky-500 text-white" : "bg-stone-200"}`}>{m.channel === "voice" ? "📞 " : m.channel === "whatsapp" ? "💬 " : ""}<Linkify text={m.body} /></div>
-            ))}
-            {busy && <div className="w-12 rounded-2xl bg-stone-200 px-3 py-2 text-sm text-stone-500">…</div>}
-            <div ref={end} />
+      {phone && (
+        <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+          <div className="space-y-4">
+            {/* Contextual: what can happen next at this stage */}
+            <Card title={`Simulate: ${label(stage || "…")}`} hint="Events from the outside world for this candidate's current step.">
+              {cand?.status === "needs_review" && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">Waiting on a recruiter decision. <Link to="/" className="underline">Open Today →</Link></p>}
+              {stage === "screening" && <p className="text-sm text-stone-600">Reply on the phone to answer the screening questions (or use Call me now).</p>}
+              {stage === "background_check" && vctx?.bg && (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    <a className={linkBtn} href={vctx.bg.form_link} target="_blank" rel="noreferrer">Open vendor form ↗</a>
+                    <button className={btn} onClick={() => act("/integrations/bg-vendor/webhook", { order_id: vctx.bg!.order_id, event: "result", status: "clear" }, "Vendor integration: background check CLEAR")}>Result: clear</button>
+                    <button className={btn} onClick={() => act("/integrations/bg-vendor/webhook", { order_id: vctx.bg!.order_id, event: "result", status: "consider", summary: "1 reckless driving violation (2024-03-11)" }, "Vendor integration: needs review")}>Result: needs review</button>
+                  </div>
+                  <details className="text-sm"><summary className="cursor-pointer text-xs text-stone-500">Fallback: results by email (Claude reads it)</summary>
+                    <div className="mt-2 flex gap-2"><button className={btn} onClick={() => setEmail(vctx.bg!.email_clear)}>Email: clear</button><button className={btn} onClick={() => setEmail(vctx.bg!.email_flagged)}>Email: flagged</button></div>
+                    {email && <div className="mt-2 space-y-1 rounded-lg border bg-stone-50 p-2">
+                      <div className="text-xs text-stone-500">From: {email.from}</div>
+                      <input className="w-full rounded border px-2 py-1 text-sm" value={email.subject} onChange={(e) => setEmail({ ...email, subject: e.target.value })} />
+                      <textarea className="h-32 w-full rounded border px-2 py-1 font-mono text-xs" value={email.body} onChange={(e) => setEmail({ ...email, body: e.target.value })} />
+                      <div className="flex gap-2"><button className="rounded-lg bg-emerald-800 px-3 py-1 text-sm text-white" onClick={() => sendEmail(email)}>Deliver email</button><button className="text-sm text-stone-500" onClick={() => setEmail(null)}>Cancel</button></div>
+                    </div>}
+                  </details>
+                </div>
+              )}
+              {stage === "drug_test" && vctx?.drug && (
+                <div className="flex flex-wrap gap-2">
+                  <a className={linkBtn} href={vctx.drug.booking_link} target="_blank" rel="noreferrer">Open booking page ↗</a>
+                  <button className={btn} onClick={() => drug("no_show")}>Missed appointment</button>
+                  <button className={btn} onClick={() => drug("collected")}>Sample collected</button>
+                  <button className={btn} onClick={() => drug("result", "negative")}>Result: negative</button>
+                  <button className={btn} onClick={() => drug("result", "non_negative")}>Result: non-negative</button>
+                  <span className="w-full text-xs text-stone-500">{vctx.drug.appointment_at ? "Appointment booked. " : "Not booked yet. "}{vctx.drug.collected ? "Sample collected." : ""}</span>
+                </div>
+              )}
+              {stage === "training" && (
+                <div className="flex flex-wrap gap-2">
+                  <a className={linkBtn} href="/training-roster" target="_blank" rel="noreferrer">Trainer's roster ↗ (tick Completed)</a>
+                </div>
+              )}
+              {stage === "skills_test" && vctx?.skills && (
+                <div className="flex flex-wrap gap-2">
+                  <button className={btn} onClick={() => act("/integrations/skills-platform/webhook", { test_id: vctx.skills!.test_id, result: "pass", score: 91 }, "Skills platform: PASS (91)")}>Skills test: pass</button>
+                  <button className={btn} onClick={() => act("/integrations/skills-platform/webhook", { test_id: vctx.skills!.test_id, result: "fail", score: 62 }, "Skills platform: FAIL (62)")}>Skills test: fail</button>
+                </div>
+              )}
+              {stage === "offer" && (
+                <div className="flex flex-wrap gap-2">
+                  {vctx?.offer ? <a className={linkBtn} href={vctx.offer.link} target="_blank" rel="noreferrer">Open offer (sign / decline) ↗</a>
+                    : <span className="text-sm text-stone-600">Offer goes out once the recruiter verifies the CDL permit photo.</span>}
+                </div>
+              )}
+              {permitStages.includes(stage) && (
+                <div className="mt-3 border-t pt-3">
+                  <div className="mb-2 text-xs font-medium text-stone-600">CDL permit (parallel track)</div>
+                  <div className="flex flex-wrap gap-2">
+                    {stage !== "offer" && <button className={btn} onClick={() => act("/demo/candidate/says-permit", { phone }, "Candidate says they have their permit: reminders stop.")}>Candidate: "I have my permit"</button>}
+                    <button className={btn} onClick={() => act("/demo/send-sample-permit", { phone }, "Sample permit photo sent. Claude is reading it…")}>Send sample permit photo</button>
+                    <a className={linkBtn} href={`/api/demo/sample-permit?phone=${encodeURIComponent(phone)}`} target="_blank" rel="noreferrer">View sample ↗</a>
+                  </div>
+                </div>
+              )}
+              {stage === "hired" && <p className="text-sm text-emerald-800">Hired 🎉 Nothing left to simulate.</p>}
+            </Card>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card title="Time" hint="Move the system clock so follow-ups fire as if days passed.">
+                <div className="flex flex-wrap gap-2">
+                  {[1, 3, 7, 30, 90].map((d) => <button key={d} className={btn} onClick={async () => {
+                    setNote(`Skipping ahead ${d} day(s)…`);
+                    const r = await api<{ offset_days: number; actions: number }>("/demo/clock/advance", { method: "POST", body: JSON.stringify({ days: d }) });
+                    setNote(`Simulated time is +${r.offset_days} days. The engine took ${r.actions} action(s).`);
+                  }}>+{d}d</button>)}
+                  <button className="text-sm text-stone-500 underline" onClick={() => act("/demo/clock/reset", undefined, "Clock reset to real time.")}>Reset</button>
+                </div>
+              </Card>
+              <Card title="Candidate controls" hint="Shortcuts for demoing.">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select className="rounded-lg border px-2 py-1.5 text-sm" value={forceTo} onChange={(e) => setForceTo(e.target.value)}>
+                    {STAGES.filter((s) => !["application", "cdl_permit"].includes(s)).map((s) => <option key={s} value={s}>{label(s)}</option>)}
+                  </select>
+                  <button className={btn} onClick={() => act("/demo/candidate/stage", { phone, stage: forceTo }, `Moved to ${label(forceTo)}.`)}>Jump to stage</button>
+                  <button className={btn} onClick={() => { if (confirm("Restart this candidate from scratch?")) act("/demo/candidate/restart", { phone }, "Restarted: intro re-sent."); }}>↺ Restart</button>
+                </div>
+              </Card>
+            </div>
           </div>
-          <div className="flex gap-1 border-t p-2">
-            <input className="flex-1 rounded-full border px-3 py-1 text-sm" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Text message" />
-            <label title="Send a photo (picture message)" className="cursor-pointer rounded-full px-2 text-lg">📷<input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && uploadPhoto(e.target.files[0])} /></label>
-            <button className="rounded-full bg-sky-500 px-3 text-sm text-white" onClick={send}>↑</button>
+
+          {/* Phone */}
+          <div>
+            <div className="mb-2 flex items-center justify-between text-xs">
+              <span className={voiceReady ? "text-emerald-700" : "text-rose-700"}>● {voiceReady ? "Voice ready" : "Voice not connected"}</span>
+              <button className="rounded-lg bg-sky-700 px-3 py-1.5 text-sm text-white hover:bg-sky-800" onClick={() => act("/demo/call", { phone }, `Calling ${phone}… answer the phone!`)}>📞 Call me now</button>
+            </div>
+            <div className="mx-auto w-80 overflow-hidden rounded-[2rem] border-8 border-stone-800 bg-white">
+              <div className="border-b bg-stone-50 px-3 py-2 text-center text-xs text-stone-500">{cand ? `${cand.first_name} · ${cand.preferred_channel === "whatsapp" ? "WhatsApp" : "SMS"}` : "…"}</div>
+              <div ref={thread} className="h-[30rem] space-y-2 overflow-y-auto p-3">
+                {msgs.map((m) => (
+                  <div key={m.id} className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${m.direction === "in" ? "ml-auto bg-sky-500 text-white" : "bg-stone-200"}`}>
+                    {m.channel === "voice" ? "📞 " : ""}<Linkify text={m.body} />
+                  </div>
+                ))}
+                {busy && <div className="w-12 rounded-2xl bg-stone-200 px-3 py-2 text-sm text-stone-500">…</div>}
+              </div>
+              <div className="flex items-center gap-1 border-t p-2">
+                <label title="Send a photo" className="cursor-pointer px-1 text-lg">📷<input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && uploadPhoto(e.target.files[0])} /></label>
+                <input className="flex-1 rounded-full border px-3 py-1 text-sm" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Reply as the candidate" />
+                <button className="rounded-full bg-sky-500 px-3 py-1 text-sm text-white" onClick={send}>↑</button>
+              </div>
+            </div>
+            <p className="mt-2 text-center text-xs text-stone-400">Messages also go to the real phone ({cand?.preferred_channel === "whatsapp" ? "WhatsApp" : "SMS"}). Replies typed here act as the candidate.</p>
           </div>
         </div>
+      )}
+
+      <section className="rounded-xl border border-dashed bg-white/60 p-3">
+        <button className="text-sm text-stone-500" onClick={() => setShowEnv(!showEnv)}>{showEnv ? "▾" : "▸"} Environment</button>
+        {showEnv && <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-stone-500">Demo data (~1,500 candidates, fictional numbers):</span>
+          <button className={btn} onClick={() => act("/demo/seed", {}, "Demo data loaded.")}>Load</button>
+          <button className={btn} onClick={() => act("/demo/seed/clear", {}, "Demo data cleared.")}>Clear</button>
+        </div>}
       </section>
     </div>
   );
