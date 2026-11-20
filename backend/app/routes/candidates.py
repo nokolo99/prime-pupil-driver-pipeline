@@ -118,7 +118,8 @@ def join_info():
     import os
     provider = os.getenv("WHATSAPP_PROVIDER", "twilio").lower()
     number = os.getenv("VONAGE_WHATSAPP_FROM" if provider == "vonage" else "TWILIO_WHATSAPP_FROM", "")
-    return {"whatsapp": number.removeprefix("whatsapp:").lstrip("+"), "prefill": "Prime Pupil"}
+    # Sandbox: the pre-typed message must be its join passphrase (e.g. "Join chain sip") or the phone never joins.
+    return {"whatsapp": number.removeprefix("whatsapp:").lstrip("+"), "prefill": os.getenv("WHATSAPP_JOIN_TEXT") or "Prime Pupil"}
 
 
 @router.get("/lookups")
