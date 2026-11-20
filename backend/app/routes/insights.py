@@ -136,8 +136,16 @@ def insights(depot_id: Optional[int] = None, recruiter_id: Optional[int] = None,
     # Automation: what the system did vs. what needed a person.
     events = [e for e in s.exec(select(Event)).all() if e.candidate_id in ids]
     auto = Counter(e.type for e in events if e.actor in (Actor.system, Actor.ai, Actor.vendor))
-    touched = {e.candidate_id for e in events if e.actor == Actor.recruiter}
-    advanced = {e.candidate_id for e in events if e.type == "stage_changed"}
+    # The only recruiter step we expect is the CDL permit check (a human looks at a legal document on purpose).
+    permit_check = {"permit_verified", "permit_new_photo_requested"}
+    other_touch = {e.candidate_id for e in events if e.actor == Actor.recruiter and e.type not in permit_check}
+    # "Moved forward": passed at least one stage and still in the process or hired (dropping out isn't moving forward).
+    lost_ids = {c.id for c in lost}
+    advanced = {e.candidate_id for e in events if e.type == "stage_changed"} - lost_ids
+    touched = other_touch
+    offered = {e.candidate_id for e in events if e.type == "offer_sent"}
+    hired_ids = {c.id for c in hired}
+    hire_touches = sum(1 for e in events if e.actor == Actor.recruiter and e.candidate_id in hired_ids)
 
     # Weekly trend (last 13 weeks): applications vs hires, same unit so one axis.
     weeks = []
@@ -195,5 +203,7 @@ def insights(depot_id: Optional[int] = None, recruiter_id: Optional[int] = None,
         "by_depot": depot_rows,
         "automation": {"follow_ups": auto.get("nudge_sent", 0) + auto.get("ai_call_placed", 0),
                        "results_processed": auto.get("bg_result_received", 0) + auto.get("drug_test_result", 0) + auto.get("skills_test_result", 0),
-                       "advanced": len(advanced), "advanced_no_recruiter": len(advanced - touched)},
+                       "advanced": len(advanced), "advanced_no_recruiter": len(advanced - touched),
+                       "offers_sent": len(offered), "offers_permit_check_only": len(offered - other_touch),
+                       "touches_per_hire": round(hire_touches / len(hired_ids), 1) if hired_ids else None},
     }

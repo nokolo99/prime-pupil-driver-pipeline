@@ -463,8 +463,12 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Anyone can ask to be called by text ("can you call me?", "llámame") at any stage; the AI says it's calling and code places the call | Same choice for people who picked text; Claude only spots the request, code makes the call |
 | 11-19 | Call ends before screening is done → text right away: "we got cut off, N questions left, reply here or say 'call me'" | Can't tell a dropped signal from a hang-up, so a text is the safe default; answers are already saved, so text picks up at the next question |
 | 11-19 | Voice: two native voices (English 8DzKSPdg…, Spanish 13VFWfJ7…) instead of one bilingual voice | The bilingual voice drifted between American, British and Mexican accents; each voice now only speaks its own language. Chosen in blind phone tests, matched to sound like coworkers |
+| 11-20 | Career page is public (no password); recruiter app stays open; demo tools stay locked | Panelists apply from a shared link; rate-limited (30/hr, 3 per number) since each application can trigger a real call or text |
+| 11-20 | Headline metric: offers sent with only one recruiter click (the permit check), plus recruiter touches per hire | The permit check stays human on purpose (legal document); everything else is automated, and the metric says so honestly |
 
 ## 18. Polish backlog
+
+**Morning of demo (11-20):** stop retrying permanent send errors (e.g. Vonage "Monthly Limit Hit") and never wait inside a request; place requested calls even if the heads-up text fails; WhatsApp quota counter in the console; new Vonage sandbox keys (rehearsal account + demo-only account); test a Twilio trial account for SMS; Pipeline auto-refresh; don't cache index.html; offers-with-one-click + touches-per-hire metric; reset data; one rehearsal run.
 
 - WhatsApp sequence: user has additional issues to review (handle near the end).
 

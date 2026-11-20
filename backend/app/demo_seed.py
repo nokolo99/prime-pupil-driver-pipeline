@@ -108,6 +108,8 @@ def seed_demo(s: Session, n: int = 1500, days: int = 150, seed: int = 7) -> dict
                             Stage.skills_test: ("skills_test_result", {"result": "pass"})}.get(stage)
             if result_event:
                 ev(result_event[0], end, actor=Actor.vendor, **result_event[1])
+            if stage in REVIEW_TASKS and random.random() < 0.025:  # a result that needed a human look, then approved
+                ev("recruiter_approved", end, actor=Actor.recruiter, task_type=REVIEW_TASKS[stage][0])
             if stage == Stage.screening:
                 ev("screening_completed", end, result="pass")
                 s.add(ScreeningResult(step_id=step.id, is_21_plus=True, has_valid_license=True, years_licensed=random.randint(3, 25),
@@ -116,6 +118,8 @@ def seed_demo(s: Session, n: int = 1500, days: int = 150, seed: int = 7) -> dict
             ev("stage_changed", end, **{"from": stage.value, "to": nxt.value})
             if stage == Stage.offer:  # hired: permit was verified before the offer
                 _permit(s, c, t - timedelta(days=12), verified_at=t - timedelta(days=0.3))
+                ev("permit_verified", t - timedelta(days=0.3), actor=Actor.recruiter)
+                ev("offer_sent", t)
             t = end
         if outcome == "hired":
             c.stage, c.stage_entered_at, c.status = Stage.hired, t, CandidateStatus.hired
@@ -180,6 +184,8 @@ def _make_current(s, c, step, stage, entered, t_now, clinics, ev):
             _permit(s, c, entered - timedelta(days=12), self_reported=True, photo_requested=True)
         else:
             _permit(s, c, entered - timedelta(days=12), verified_at=entered)
+            ev("permit_verified", entered, actor=Actor.recruiter)
+            ev("offer_sent", entered)
             o = vendors.offer_letter(c.id)
             s.add(Offer(step_id=step.id, offer_id=o["offer_id"], sign_link=o["link"], sent_at=entered,
                         terms={"title": "School Bus Driver", "pay_rate": "$24.00/hour"}))

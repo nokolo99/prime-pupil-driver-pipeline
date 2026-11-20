@@ -18,7 +18,8 @@ type Data = {
   drop_by_stage: Record<string, Record<string, number>>;
   by_depot: { depot_id: number; depot: string; city: string; applied: number; active: number; hired: number; hired_30d: number;
               needs_review: number; lost: number; stuck: number; conversion: number | null; median_days_to_hire: number | null }[];
-  automation: { follow_ups: number; results_processed: number; advanced: number; advanced_no_recruiter: number };
+  automation: { follow_ups: number; results_processed: number; advanced: number; advanced_no_recruiter: number;
+    offers_sent: number; offers_permit_check_only: number; touches_per_hire: number | null };
 };
 
 // Metric definition: hover (or tap) the ⓘ.
@@ -37,7 +38,8 @@ const DEF = {
   hires30: "Candidates who signed their offer in the last 30 days. Baseline (17/mo) and goal (35/mo) are from Prime Pupil.",
   tth: "Median days from application (arrival from Workday) to signed offer, for hired candidates.",
   active: "Candidates still in the process: not hired, dropped, or rejected.",
-  noTouch: "Of candidates who moved past at least one stage, the share with no recruiter action on their record (approvals, rejections, manual updates). The rest of the work was follow-ups, reminders and results handled by the system.",
+  offers: "Offers sent where the only recruiter action was checking the CDL permit photo (kept human on purpose: it's a legal document). Everything else (screening, follow-ups, vendor results, scheduling, the offer itself) ran automatically. Touches per hire counts every recruiter action on hired candidates' records.",
+  noTouch: "Of candidates who passed at least one stage and are still in the process or hired, the share with no recruiter action on their record (approvals, manual updates) other than the CDL permit check. The rest of the work was follow-ups, reminders and results handled by the system.",
   firstContact: "Median time from a candidate arriving from Workday to the first message we send them.",
   hours: "Automated actions in the last 30 days × the minutes each would take a recruiter by hand (editable), converted to hours per week.",
   whatif: "Applications per month × each stage's pass rate (among candidates who finished or left that stage). Sliders reduce one stage's drop-off; others stay the same.",
@@ -335,11 +337,12 @@ export default function Insights() {
         <button className="ml-2" aria-label="Remove week filter" onClick={() => { const { applied_from: _a, applied_to: _b, ...rest } = f; setF(rest); }}>✕</button></span></div>}
       {f.channel && <p className="text-xs text-amber-800">Note: candidates who stay in the process longer get more calls, so this comparison shows correlation, not that calls cause hires.</p>}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Tile info={DEF.hires30} value={d.totals.hired_30d} label="Hires, last 30 days" sub={`Baseline ${d.baseline.hires_per_month}/mo · Goal ${d.baseline.goal_hires_per_month}/mo`} />
         <Tile info={DEF.tth} value={d.totals.median_days_to_hire ? `${d.totals.median_days_to_hire}d` : "—"} label="Median time to hire" sub={`Baseline ~${d.baseline.days_to_hire} days`} />
         <Tile info={DEF.active} value={d.totals.active} label="Active candidates" sub={`${d.totals.candidates} total`} />
         <Tile info={DEF.noTouch} value={a.advanced ? `${Math.round((a.advanced_no_recruiter / a.advanced) * 100)}%` : "—"} label="Moved forward with no recruiter touch" sub={`${a.follow_ups.toLocaleString()} follow-ups · ${a.results_processed} results processed automatically`} />
+        <Tile info={DEF.offers} value={a.offers_sent ? `${a.offers_permit_check_only} of ${a.offers_sent}` : "—"} label="Offers sent with one recruiter click (the permit check)" sub={a.touches_per_hire != null ? `${a.touches_per_hire} recruiter touches per hire` : undefined} />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-3">
