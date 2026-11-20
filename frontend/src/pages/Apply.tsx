@@ -4,17 +4,19 @@ import { api, demoHeaders, type Lookups } from "../api";
 
 // Stand-in for Prime Pupil's career page. Submitting creates the application in Workday (poll mode:
 // our connector picks it up with Get_Candidates) or posts it straight in (direct mode).
-export default function Apply() {
+// Public: anyone with the link can apply. With the demo password, submitting jumps to the demo console.
+export default function Apply({ unlocked }: { unlocked: boolean }) {
   const nav = useNavigate();
   const [lk, setLk] = useState<Lookups>({ depots: [], recruiters: [] });
   const [mode, setMode] = useState("poll");
   const [f, setF] = useState({ first_name: "", last_name: "", phone: "", depot_id: 1, language: "en", channel: "whatsapp", first_contact: "text", sms_consent: true });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
   useEffect(() => {
     api<Lookups>("/lookups").then(setLk);
-    api<{ workday_intake?: string }>("/demo/voice-status").then((v) => setMode(v.workday_intake ?? "poll"));
-  }, []);
+    if (unlocked) api<{ workday_intake?: string }>("/demo/voice-status").then((v) => setMode(v.workday_intake ?? "poll")).catch(() => {});
+  }, [unlocked]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setErr(""); setBusy(true);
@@ -30,9 +32,20 @@ export default function Apply() {
           body: JSON.stringify({ ...f, workday_id: `WD-${Math.floor(1000 + Math.random() * 9000)}` }) });
         phone = r.phone;
       }
-      nav(`/demo?phone=${encodeURIComponent(phone)}&new=1`);
+      if (unlocked) nav(`/demo?phone=${encodeURIComponent(phone)}&new=1`);
+      else setDone(true);
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
+
+  if (done) return (
+    <div className="mx-auto max-w-md rounded-xl border bg-white p-6 text-center shadow-sm">
+      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-800">Prime Pupil Transportation · Careers</div>
+      <h2 className="text-xl font-semibold">Thanks for applying, {f.first_name}!</h2>
+      <p className="mt-2 text-sm text-stone-600">{f.first_contact === "call"
+        ? "We'll call you in about a minute to ask a few quick questions. Keep your phone handy."
+        : `We'll text you in a moment on ${f.channel === "whatsapp" ? "WhatsApp" : "SMS"} to ask a few quick questions.`}</p>
+    </div>
+  );
 
   const input = "w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-emerald-700 focus:outline-none";
   return (
@@ -77,7 +90,7 @@ export default function Apply() {
         <button disabled={busy} className="w-full rounded-lg bg-emerald-800 py-2.5 text-sm font-medium text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? "Submitting…" : "Apply"}</button>
         {err && <p className="text-sm text-rose-700">⚠ {err}</p>}
       </form>
-      <p className="mt-3 text-center text-xs text-stone-400">Demo: applications go into {mode === "poll" ? "a fake Workday; our connector picks them up within seconds" : "the system directly (shortcut mode)"}.</p>
+      {unlocked && <p className="mt-3 text-center text-xs text-stone-400">Demo: applications go into {mode === "poll" ? "a fake Workday; our connector picks them up within seconds" : "the system directly (shortcut mode)"}.</p>}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import Today from "./pages/Today";
 import Pipeline from "./pages/Pipeline";
 import CandidateDetail from "./pages/CandidateDetail";
@@ -25,6 +25,9 @@ export default function App() {
     window.addEventListener("pp-demo-unlocked", check);
     return () => window.removeEventListener("pp-demo-unlocked", check);
   }, []);
+  // The career page is public (shared with applicants): without the demo password it shows on its own, no recruiter app around it.
+  const { pathname } = useLocation();
+  if (pathname === "/apply" && !unlocked) return <main className="min-h-screen px-4 py-10"><Apply unlocked={false} /></main>;
   return (
     <div className="min-h-screen">
       <ClockBanner />
@@ -61,7 +64,7 @@ export default function App() {
           <Route path="/insights" element={<Insights />} />
           <Route path="/training-roster" element={<DemoGate><TrainingSheet /></DemoGate>} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/apply" element={<DemoGate><Apply /></DemoGate>} />
+          <Route path="/apply" element={<Apply unlocked={unlocked} />} />
           <Route path="/workday" element={<DemoGate><Workday /></DemoGate>} />
         </Routes>
       </main>

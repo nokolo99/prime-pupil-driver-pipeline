@@ -39,14 +39,30 @@ class Apply(BaseModel):
 from ..demo_auth import require_demo  # noqa: E402
 
 
-@router.post("/career-site/apply", dependencies=[Depends(require_demo)])
+_recent_applies: list[tuple[float, str]] = []  # (time, phone) for the public form's rate limit
+APPLY_LIMIT_PER_HOUR, APPLY_LIMIT_PER_PHONE = 30, 3
+
+
+@router.post("/career-site/apply")
 def career_site_apply(a: Apply, s: Session = Depends(get_session)):
-    """What happens when someone submits Prime Pupil's career-page form: a candidate + job application in Workday."""
+    """What happens when someone submits Prime Pupil's career-page form: a candidate + job application in Workday.
+    Public (applicants get the link), so it's rate-limited: each application can trigger a real call or text."""
+    import time
+    from fastapi import HTTPException
     from ..phones import normalize_us
+    try:
+        phone = normalize_us(a.phone)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    cutoff = time.time() - 3600
+    _recent_applies[:] = [x for x in _recent_applies if x[0] > cutoff]
+    if len(_recent_applies) >= APPLY_LIMIT_PER_HOUR or sum(p == phone for _, p in _recent_applies) >= APPLY_LIMIT_PER_PHONE:
+        raise HTTPException(429, "Too many applications right now. Please try again later.")
+    _recent_applies.append((time.time(), phone))
     row = MockWorkdayApplication(candidate_id=f"CAND-{secrets.randbelow(900000) + 100000}",
                                  job_application_id=f"JA-{secrets.token_hex(3).upper()}",
                                  job_requisition_id=requisition_for_depot(a.depot_id),
-                                 **{**a.model_dump(exclude={"depot_id", "phone"}), "phone": normalize_us(a.phone)})
+                                 **{**a.model_dump(exclude={"depot_id", "phone"}), "phone": phone})
     s.add(row)
     s.commit()
     s.refresh(row)
