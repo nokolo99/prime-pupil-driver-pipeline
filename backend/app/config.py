@@ -88,12 +88,12 @@ TEMPLATES = {
         "es": "¡Buenas noticias, pasaste la evaluación!",
     },
     "screening_review": {
-        "en": "Thanks for your answers! A recruiter will review them and follow up within 1 business day.",
-        "es": "¡Gracias por tus respuestas! Un reclutador las revisará y te contactará en 1 día hábil.",
+        "en": "Thanks for your answers! A recruiter will review them and follow up soon.",
+        "es": "¡Gracias por tus respuestas! Un reclutador las revisará y te contactará pronto.",
     },
     "handoff": {
-        "en": "Good question! I'll have a recruiter get back to you within 1 business day.",
-        "es": "¡Buena pregunta! Un reclutador te responderá en 1 día hábil.",
+        "en": "Good question! A recruiter will get back to you soon.",
+        "es": "¡Buena pregunta! Un reclutador te responderá pronto.",
     },
     "reminder_1": {
         "en": "Hi {first_name}, just checking in! You're almost done with your Prime Pupil application. Reply anytime to pick up where you left off.",
@@ -159,8 +159,8 @@ TEMPLATES = {
         "es": "¡Buenas noticias {first_name}, tu verificación de antecedentes salió bien!",
     },
     "under_review": {
-        "en": "Thanks {first_name}. A recruiter is reviewing your results and will follow up within 1 business day.",
-        "es": "Gracias {first_name}. Un reclutador está revisando tus resultados y te contactará en 1 día hábil.",
+        "en": "Thanks {first_name}. A recruiter is reviewing your results and will follow up soon.",
+        "es": "Gracias {first_name}. Un reclutador está revisando tus resultados y te contactará pronto.",
     },
     "drug_start": {
         "en": "Next step: a quick DOT drug test (about 15 min). Here's your authorization: {link}\nWalk in at any of these clinics with a photo ID:\n{clinics}\nWhen are you planning to go?",

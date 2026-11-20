@@ -289,7 +289,7 @@ Depot ─┬─< Candidate >── Recruiter
 |---|---|
 | Applies | Short career-page form on her phone: name, phone, depot, language, SMS consent checkbox |
 | Within seconds | First text in her language: intro + "Do you have 5 minutes for a few quick questions?" |
-| Screening | ~5 questions, one at a time, answered in her own words. Pass → straight to next step. Knockout flag → "A recruiter will follow up within 1 business day" (never rejected by text) |
+| Screening | ~5 questions, one at a time, answered in her own words. Pass → straight to next step. Knockout flag → "A recruiter will follow up soon" (never rejected by text) |
 | Background check | Vendor form link immediately ("takes ~10 minutes"); reminders if not completed; notified when results arrive |
 | Drug test | Authorization + nearest 2–3 clinics (hours, map link); reminders day before + morning of; no-show → "Want to go tomorrow instead?" |
 | Throughout | Can ask anything; "talk to a person" → recruiter task; STOP anytime |
