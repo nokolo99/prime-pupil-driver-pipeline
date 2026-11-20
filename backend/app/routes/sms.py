@@ -23,28 +23,6 @@ START_WORDS = {"start", "unstop", "yes"}
 EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
 
 
-_apply_link_sent: dict[str, float] = {}  # phone -> when we last sent them the apply link
-
-
-def _reply_with_apply_link(phone: str, channel: Channel) -> None:
-    """Someone messaged before applying (e.g. scanned the WhatsApp QR code): send them the career page.
-    Their message also opens WhatsApp's 24-hour window, so our intro can follow once they apply.
-    At most once an hour per number, so two bots can never loop."""
-    import time
-    from urllib.parse import quote
-    from .. import messaging, telephony
-    if time.time() - _apply_link_sent.get(phone, 0) < 3600 or not telephony.PUBLIC_URL:
-        return
-    _apply_link_sent[phone] = time.time()
-    link = f"{telephony.PUBLIC_URL}/apply?phone={quote(phone)}&channel={channel.value}"
-    body = (f"Hi! Thanks for your interest in driving with Prime Pupil. Apply here, it takes about a minute: {link}\n\n"
-            f"¡Hola! Gracias por tu interés en manejar con Prime Pupil. Postúlate aquí, toma un minuto: {link}")
-    try:
-        messaging.send_text(channel.value, phone, body)
-    except Exception as e:
-        log.warning("apply-link reply to %s failed: %s", phone, e)
-
-
 def process_incoming_later(phone: str, body: str, channel: Channel, get_photo=None) -> None:
     """Run process_incoming after the webhook has answered (background task, worker thread): the Claude call
     and replies take seconds, and doing them inside the request would hold up the whole server."""
@@ -60,8 +38,9 @@ def process_incoming(s: Session, phone: str, body: str, channel: Channel, get_ph
     get_photo: optional callable returning (bytes, media_type) if the message has a picture."""
     c = s.exec(select(Candidate).where(Candidate.phone == phone).order_by(Candidate.created_at.desc())).first()
     if not c:
+        # Not a candidate yet (e.g. said hi from the /join QR code before applying). No reply: their message
+        # opens WhatsApp's 24-hour window, so our intro reaches them once they apply.
         log.info("Message from unknown number %s: %r", phone, body[:60])
-        _reply_with_apply_link(phone, channel)
         return
     if channel == Channel.whatsapp and c.preferred_channel != channel:
         c.preferred_channel = channel  # they reached us on WhatsApp: keep the conversation there
