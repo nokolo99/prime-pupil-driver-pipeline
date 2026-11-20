@@ -6,6 +6,9 @@ import { StatusPill } from "../components";
 // The CDL permit runs in parallel with training, so it isn't a column of its own here.
 const PIPELINE_STAGES = STAGES.filter((s) => s !== "application" && s !== "cdl_permit");
 const PAGE = 50;
+const sel = "rounded-lg border bg-white px-2 py-1.5 text-sm";
+const STATUS_TITLE: Record<string, string> = { needs_review: "Needs review", waiting_on_candidate: "Waiting on candidate", waiting_on_vendor: "Waiting on vendor",
+  stuck: "Stuck candidates", hired: "Hired", lost: "Lost candidates", "": "All candidates" };
 type SortKey = "name" | "depot" | "stage" | "status" | "days" | "contact";
 
 export default function Pipeline() {
@@ -20,6 +23,10 @@ export default function Pipeline() {
   const [sla, setSla] = useState<Record<string, number>>({});
   const [flags, setFlags] = useState<{ candidate_id: number; note: string }[]>([]);
   const [q, setQ] = useState("");
+  // Filters (client-side). Status defaults to Active so the tiles mean "who's in progress at each stage".
+  const [status, setStatus] = useState(params.get("status") ? "" : "active");
+  const [recruiter, setRecruiter] = useState("");
+  const [lang, setLang] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "days", dir: -1 });
   const [page, setPage] = useState(0);
 
@@ -32,7 +39,19 @@ export default function Pipeline() {
 
   const stuck = (c: Candidate) => !["dropped", "rejected", "hired"].includes(c.status) && sla[c.stage] !== undefined && daysSince(c.stage_entered_at) > sla[c.stage];
   const depotName = (id: number | null) => lk.depots.find((d) => d.id === id)?.name ?? "—";
-  const inDepot = candidates.filter((c) => !depot || String(c.depot_id) === depot);
+  const LOST = ["dropped", "rejected"];
+  const statusOk = (c: Candidate) => {
+    switch (status) {
+      case "active": return !LOST.includes(c.status) && c.stage !== "hired";
+      case "stuck": return stuck(c);
+      case "hired": return c.stage === "hired";
+      case "lost": return LOST.includes(c.status);
+      case "": return true;
+      default: return c.status === status;
+    }
+  };
+  const inDepot = candidates.filter((c) => (!depot || String(c.depot_id) === depot) && (!recruiter || String(c.recruiter_id) === recruiter)
+    && (!lang || (lang === "other" ? !["en", "es"].includes(c.preferred_language) : c.preferred_language === lang)) && statusOk(c));
   const ql = q.trim().toLowerCase(), digits = q.replace(/\D/g, "");
   const shown = inDepot
     .filter((c) => !stage || c.stage === stage || (stage === "training" && c.stage === "cdl_permit"))
@@ -59,23 +78,47 @@ export default function Pipeline() {
           {extraQs ? <p className="text-xs text-stone-500">Filtered from Insights: {[...extra.entries()].map(([k, v]) => `${label(k)} = ${label(v)}`).join(" · ")} · <button className="underline" onClick={() => setParams(new URLSearchParams(depot ? { depot_id: depot } : {}))}>clear</button></p>
             : <p className="text-sm text-stone-500">Every candidate and where they are. Rows in red are stuck past their stage's time limit.</p>}
         </div>
-        <div className="flex gap-2">
-          <input className="w-64 rounded-lg border bg-white px-3 py-1.5 text-sm" placeholder="Search name or phone…" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
-          <select className="rounded-lg border bg-white px-2 py-1.5 text-sm" value={depot} onChange={(e) => setParam("depot_id", e.target.value || null)}>
-            <option value="">All depots</option>
-            {lk.depots.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-        </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
-        {PIPELINE_STAGES.map((s) => {
-          const n = inDepot.filter((c) => c.stage === s || (s === "training" && c.stage === "cdl_permit")).length;
+      <div className="flex flex-wrap items-center gap-2">
+        <input className="w-60 rounded-lg border bg-white px-3 py-1.5 text-sm" placeholder="Search name or phone…" value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} />
+        <select aria-label="Status" className={sel} value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}>
+          <option value="active">Active (in progress)</option><option value="needs_review">Needs review</option>
+          <option value="waiting_on_candidate">Waiting on candidate</option><option value="waiting_on_vendor">Waiting on vendor</option>
+          <option value="stuck">Stuck (past time limit)</option><option value="hired">Hired</option><option value="lost">Lost (dropped or rejected)</option>
+          <option value="">All statuses</option>
+        </select>
+        <select aria-label="Stage" className={sel} value={stage ?? ""} onChange={(e) => setParam("stage", e.target.value || null)}>
+          <option value="">All stages</option>
+          {PIPELINE_STAGES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
+        </select>
+        <select aria-label="Depot" className={sel} value={depot} onChange={(e) => setParam("depot_id", e.target.value || null)}>
+          <option value="">All depots</option>
+          {lk.depots.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+        <select aria-label="Recruiter" className={sel} value={recruiter} onChange={(e) => { setRecruiter(e.target.value); setPage(0); }}>
+          <option value="">All recruiters</option>
+          {lk.recruiters.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+        <select aria-label="Language" className={sel} value={lang} onChange={(e) => { setLang(e.target.value); setPage(0); }}>
+          <option value="">All languages</option><option value="en">English</option><option value="es">Spanish</option><option value="other">Other</option>
+        </select>
+        {(q || status !== "active" || stage || depot || recruiter || lang) &&
+          <button className="text-sm text-stone-500 underline" onClick={() => { setQ(""); setStatus("active"); setRecruiter(""); setLang(""); setParams(new URLSearchParams()); setPage(0); }}>Reset filters</button>}
+      </div>
+
+      <p className="text-xs font-medium uppercase tracking-wide text-stone-500">{status === "active" ? "Active candidates by current stage" : `${STATUS_TITLE[status] ?? "Candidates"} by current stage`} · click a stage to filter</p>
+
+      <div className={`-mt-2 grid grid-cols-3 gap-2 ${status === "active" ? "sm:grid-cols-6" : "sm:grid-cols-7"}`}>
+        {PIPELINE_STAGES.filter((s) => !(status === "active" && s === "hired")).map((s) => {
+          const at = inDepot.filter((c) => c.stage === s || (s === "training" && c.stage === "cdl_permit"));
+          const nStuck = at.filter(stuck).length;
           return (
             <button key={s} onClick={() => setParam("stage", stage === s ? null : s)}
               className={`rounded-xl border p-2.5 text-left transition-colors ${stage === s ? "border-emerald-700 bg-emerald-50" : "bg-white hover:bg-stone-50"}`}>
-              <div className="text-xl font-semibold tabular-nums">{n}</div>
+              <div className="text-xl font-semibold tabular-nums">{at.length}</div>
               <div className="text-xs text-stone-500">{label(s)}</div>
+              <div className={`mt-0.5 text-[11px] ${nStuck ? "text-rose-700" : "text-transparent"}`}>{nStuck} stuck</div>
             </button>
           );
         })}
