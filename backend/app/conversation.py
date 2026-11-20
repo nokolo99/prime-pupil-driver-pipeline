@@ -58,13 +58,10 @@ def send(s: Session, candidate: Candidate, body: str, body_en: Optional[str], se
 
 
 def _deliver_sms(s: Session, candidate: Candidate, msg: Message) -> None:
-    """Hand an outbound text to Twilio. Failures are logged on the timeline, never raised."""
-    from . import telephony
-    if not telephony.twilio_ready():
-        return
+    """Hand an outbound text to the configured provider (Twilio or Vonage). Failures are logged, never raised."""
+    from . import messaging
     try:
-        send_fn = telephony.send_whatsapp if msg.channel == Channel.whatsapp else telephony.send_sms
-        msg.provider_id = send_fn(candidate.phone, msg.body)
+        msg.provider_id = messaging.send_text(msg.channel.value, candidate.phone, msg.body)
     except Exception as e:
         log.warning("SMS to %s failed: %s", candidate.phone, e)
         s.add(Event(candidate_id=candidate.id, type="sms_failed", actor=Actor.system,

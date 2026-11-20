@@ -346,6 +346,7 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | System | In this build | In production |
 |---|---|---|
 | Twilio SMS | Wired: inbound webhook, outbound send, STOP/START, delivery receipts. Outbound blocked (30034) until A2P approval | Real |
+| Vonage WhatsApp (sandbox) / SMS | Adapter: send via Messages API, inbound + status webhooks at /vonage/*, optional JWT signature check | Production WhatsApp sender + registered SMS number |
 | Twilio voice | Real: ConversationRelay (ElevenLabs TTS, Deepgram STT) over WebSocket | Same; deploy removes ngrok |
 | Claude API | Real | Real |
 | Workday: outbound (stage sync) | Mock connector (Tier 2) | Real Workday API behind the same interface |
@@ -430,7 +431,8 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | BG results via vendor integration; email parsing kept as fallback | John: vendor integration covers results |
 | 11-19 | Training completion: watch the trainer's shared spreadsheet; marking complete moves the candidate on automatically | Trainer's workflow unchanged; removes "recruiters check when they remember" |
 | 11-19 | Screening = John's four automatic fails (21+, licensed 3+ yrs, no DUI in 7 yrs, willing to drug test); failures still go to recruiter review | Match their process; John earlier said a recruiter reviews before any rejection |
-| 11-19 | Real-phone texting for the demo via WhatsApp (Twilio sandbox); SMS stays wired for when approval lands; trial account as fallback; voice on our number | Carrier approval may not arrive; John suggested WhatsApp; widely used by Spanish-speaking workers |
+| 11-19 | Messaging providers configurable per channel (SMS_PROVIDER / WHATSAPP_PROVIDER = twilio or vonage); WhatsApp via Vonage Messages API sandbox (Twilio's sandbox unavailable on new accounts); voice stays on Twilio | Swap vendors without touching conversation logic; Vonage sandbox needs no WhatsApp Business account |
+| 11-19 | (superseded) Real-phone texting for the demo via WhatsApp (Twilio sandbox); SMS stays wired for when approval lands; trial account as fallback; voice on our number | Carrier approval may not arrive; John suggested WhatsApp; widely used by Spanish-speaking workers |
 | 11-19 | Voice turns use Claude Haiku 5.5 (SMS stays on Sonnet 5.5); 0.5s merge window for split utterances | Live calls need ~2s replies; code still makes every decision, so the smaller model is safe |
 | 11-19 | Voice both outbound (follow-up calls, "call me now") and inbound | One conversation brain across SMS, voice, and simulator |
 | 11-19 | Unknown inbound callers get a polite close (no DRIVE prompt) | Applications come through Workday |

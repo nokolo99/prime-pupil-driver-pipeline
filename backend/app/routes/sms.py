@@ -23,32 +23,23 @@ START_WORDS = {"start", "unstop", "yes"}
 EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
 
 
-@router.post("/inbound")
-async def inbound(request: Request, s: Session = Depends(get_session)):
-    """SMS and WhatsApp both arrive here (WhatsApp senders look like 'whatsapp:+1...')."""
-    form = await _verified_form(request)
-    raw_from, body = form.get("From", ""), (form.get("Body") or "").strip()
-    channel = Channel.whatsapp if raw_from.startswith("whatsapp:") else Channel.sms
-    phone = raw_from.removeprefix("whatsapp:")
+def process_incoming(s: Session, phone: str, body: str, channel: Channel, get_photo=None) -> None:
+    """Provider-independent handling of an incoming text (Twilio or Vonage, SMS or WhatsApp).
+    get_photo: optional callable returning (bytes, media_type) if the message has a picture."""
     c = s.exec(select(Candidate).where(Candidate.phone == phone).order_by(Candidate.created_at.desc())).first()
     if not c:
         log.info("Message from unknown number %s: %r", phone, body[:60])
-        return Response(EMPTY_TWIML, media_type="application/xml")
-    if c.preferred_channel != channel and channel == Channel.whatsapp:
+        return
+    if channel == Channel.whatsapp and c.preferred_channel != channel:
         c.preferred_channel = channel  # they reached us on WhatsApp: keep the conversation there
         log_event(s, c, "channel_changed", Actor.candidate, to=channel.value)
 
-    if int(form.get("NumMedia", "0") or 0) > 0 and c.stage.value == "cdl_permit":
-        # Permit photo (picture message). Download from Twilio and hand to the permit check.
-        import os
-        import httpx2 as httpx
+    if get_photo and c.stage.value == "cdl_permit":
         from ..stages import permit_photo_received
-        from ..models import Message as Msg
-        url, mtype = form.get("MediaUrl0"), form.get("MediaContentType0", "image/jpeg")
-        data = httpx.get(url, auth=(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"]), follow_redirects=True).content
-        s.add(Msg(candidate_id=c.id, direction="in", channel=channel, sender="candidate", body=body or "[photo]"))
+        data, mtype = get_photo()
+        s.add(Message(candidate_id=c.id, direction="in", channel=channel, sender="candidate", body=body or "[photo]"))
         permit_photo_received(s, c, data, mtype)
-        return Response(EMPTY_TWIML, media_type="application/xml")
+        return
 
     word = body.lower().strip(" .!")
     if word in STOP_WORDS:
@@ -63,6 +54,24 @@ async def inbound(request: Request, s: Session = Depends(get_session)):
         s.commit()
     else:
         handle_inbound(s, c, body, channel)  # replies go back on the same channel via conversation.send()
+
+
+@router.post("/inbound")
+async def inbound(request: Request, s: Session = Depends(get_session)):
+    """Twilio webhook: SMS and WhatsApp (WhatsApp senders look like 'whatsapp:+1...')."""
+    import os
+    form = await _verified_form(request)
+    raw_from, body = form.get("From", ""), (form.get("Body") or "").strip()
+    channel = Channel.whatsapp if raw_from.startswith("whatsapp:") else Channel.sms
+
+    def photo():
+        import httpx2 as httpx
+        data = httpx.get(form.get("MediaUrl0"), auth=(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"]),
+                         follow_redirects=True).content
+        return data, form.get("MediaContentType0", "image/jpeg")
+
+    has_photo = int(form.get("NumMedia", "0") or 0) > 0
+    process_incoming(s, raw_from.removeprefix("whatsapp:"), body, channel, photo if has_photo else None)
     return Response(EMPTY_TWIML, media_type="application/xml")
 
 
