@@ -52,7 +52,7 @@ def send(s: Session, candidate: Candidate, body: str, body_en: Optional[str], se
                   translation_en=body_en if body_en and body_en != body else None)
     s.add(msg)
     candidate.last_contacted_at = now()
-    if msg.channel == Channel.sms and not candidate.opted_out:
+    if msg.channel in (Channel.sms, Channel.whatsapp) and not candidate.opted_out:
         _deliver_sms(s, candidate, msg)
     return msg
 
@@ -63,7 +63,8 @@ def _deliver_sms(s: Session, candidate: Candidate, msg: Message) -> None:
     if not telephony.twilio_ready():
         return
     try:
-        msg.provider_id = telephony.send_sms(candidate.phone, msg.body)
+        send_fn = telephony.send_whatsapp if msg.channel == Channel.whatsapp else telephony.send_sms
+        msg.provider_id = send_fn(candidate.phone, msg.body)
     except Exception as e:
         log.warning("SMS to %s failed: %s", candidate.phone, e)
         s.add(Event(candidate_id=candidate.id, type="sms_failed", actor=Actor.system,
@@ -91,7 +92,8 @@ def remaining_questions(sr: ScreeningResult) -> list[dict]:
 # ---------- Intake (Workday "new applicant" event) ----------
 
 def intake_applicant(s: Session, *, first_name: str, last_name: str, phone: str, email: Optional[str],
-                     depot_id: int, language: str, sms_consent: bool, workday_id: Optional[str]) -> Candidate:
+                     depot_id: int, language: str, sms_consent: bool, workday_id: Optional[str],
+                     channel: str = "sms") -> Candidate:
     if language not in ("en", "es"):
         language = "en"  # "Other": start in English; we switch as soon as they reply in their language
     recruiter = s.exec(select(Recruiter).where(Recruiter.depot_id == depot_id)).first() \
@@ -99,6 +101,7 @@ def intake_applicant(s: Session, *, first_name: str, last_name: str, phone: str,
     c = Candidate(first_name=first_name, last_name=last_name, phone=phone, email=email,
                   depot_id=depot_id, recruiter_id=recruiter.id if recruiter else None,
                   preferred_language=language, source="workday", workday_id=workday_id,
+                  preferred_channel=Channel(channel) if channel in ("sms", "whatsapp") else Channel.sms,
                   stage=Stage.screening, status=CandidateStatus.waiting_on_candidate,
                   sms_consent_at=now() if sms_consent else None)
     s.add(c)

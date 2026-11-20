@@ -75,6 +75,7 @@ class DropReason(str, Enum):
 
 class Channel(str, Enum):
     sms = "sms"
+    whatsapp = "whatsapp"
     voice = "voice"
     web = "web"  # browser chat simulator
 

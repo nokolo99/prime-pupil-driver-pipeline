@@ -74,7 +74,7 @@ export default function CandidateDetail() {
               <div key={m.id} className={`max-w-[85%] ${m.direction === "in" ? "" : "ml-auto text-right"}`}>
                 <div className={`inline-block rounded-2xl px-3 py-2 text-left text-sm ${m.direction === "in" ? "bg-stone-200" : "bg-emerald-700 text-white"}`}><Linkify text={m.body} /></div>
                 {m.translation_en && <div className="mt-0.5 text-xs italic text-stone-500">EN: {m.translation_en}</div>}
-                <div className="text-[10px] text-stone-400">{m.channel === "voice" ? "📞 Call · " : ""}{m.direction === "in" ? "Candidate" : label(m.sender)} · {asDate(m.created_at).toLocaleTimeString()}</div>
+                <div className="text-[10px] text-stone-400">{m.channel === "voice" ? "📞 Call · " : m.channel === "whatsapp" ? "💬 WhatsApp · " : m.channel === "sms" ? "SMS · " : ""}{m.direction === "in" ? "Candidate" : label(m.sender)} · {asDate(m.created_at).toLocaleTimeString()}</div>
               </div>
             ))}
           </div>

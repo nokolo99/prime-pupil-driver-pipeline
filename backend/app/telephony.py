@@ -97,3 +97,13 @@ def send_sms(to: str, body: str) -> Optional[str]:
     if PUBLIC_URL:
         kwargs["status_callback"] = f"{PUBLIC_URL}/sms/status"
     return client().messages.create(**kwargs).sid
+
+
+def send_whatsapp(to: str, body: str) -> Optional[str]:
+    """Send a WhatsApp message (Twilio sandbox for the demo). Same Messages API as SMS, with whatsapp: addresses."""
+    if not twilio_ready() or is_fictional(to):
+        return None
+    kwargs = {"to": f"whatsapp:{to}", "from_": os.getenv("WHATSAPP_FROM", "whatsapp:+14155238886"), "body": body}
+    if PUBLIC_URL:
+        kwargs["status_callback"] = f"{PUBLIC_URL}/sms/status"
+    return client().messages.create(**kwargs).sid

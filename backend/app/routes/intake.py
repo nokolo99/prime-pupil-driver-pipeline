@@ -26,6 +26,7 @@ class NewApplicant(BaseModel):
     depot_id: int
     language: str = "en"
     sms_consent: bool = True
+    channel: str = "sms"  # sms or whatsapp (how the candidate prefers to be texted)
 
 
 @router.post("/applicant")

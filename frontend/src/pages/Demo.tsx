@@ -5,7 +5,7 @@ import { Linkify } from "../components";
 // Demo control panel: drives the story. Not part of the recruiter product.
 export default function Demo() {
   const [lk, setLk] = useState<Lookups>({ depots: [], recruiters: [] });
-  const [form, setForm] = useState({ first_name: "Maria", last_name: "Gonzalez", phone: "+15550001111", depot_id: 1, language: "en", sms_consent: true });
+  const [form, setForm] = useState({ first_name: "Maria", last_name: "Gonzalez", phone: "+15550001111", depot_id: 1, language: "en", sms_consent: true, channel: "whatsapp" });
   const [phone, setPhone] = useState("+15550001111");
   const [msgs, setMsgs] = useState<Message[]>([]);
   const [text, setText] = useState("");
@@ -131,6 +131,10 @@ export default function Demo() {
           <select className={input} value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })}>
             <option value="en">English</option><option value="es">Español</option><option value="other">Other</option>
           </select>
+          <select className={`${input} col-span-2`} value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })}>
+            <option value="whatsapp">Texts via WhatsApp (works on real phones today)</option>
+            <option value="sms">Texts via SMS (needs carrier approval)</option>
+          </select>
           <label className="col-span-2 flex items-center gap-2 text-xs text-stone-600">
             <input type="checkbox" checked={form.sms_consent} onChange={(e) => setForm({ ...form, sms_consent: e.target.checked })} />
             Candidate agreed to receive texts about their application
@@ -217,7 +221,7 @@ export default function Demo() {
         <div className="mx-auto w-80 rounded-[2rem] border-8 border-stone-800 bg-white">
           <div className="h-[28rem] space-y-2 overflow-y-auto p-3">
             {msgs.map((m) => (
-              <div key={m.id} className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${m.direction === "in" ? "ml-auto bg-sky-500 text-white" : "bg-stone-200"}`}>{m.channel === "voice" ? "📞 " : ""}<Linkify text={m.body} /></div>
+              <div key={m.id} className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${m.direction === "in" ? "ml-auto bg-sky-500 text-white" : "bg-stone-200"}`}>{m.channel === "voice" ? "📞 " : m.channel === "whatsapp" ? "💬 " : ""}<Linkify text={m.body} /></div>
             ))}
             {busy && <div className="w-12 rounded-2xl bg-stone-200 px-3 py-2 text-sm text-stone-500">…</div>}
             <div ref={end} />

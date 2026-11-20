@@ -59,6 +59,17 @@ Answers received 2026-11-19 (full text in `john_reply_1.md`).
 
 **Key takeaway:** the 90 days is mostly candidates not doing their part (filling out the BG form, going to the clinic) and nobody following up. The highest-leverage product is an **always-on follow-up system** that gets candidates to act, plus a **clear view of who's stuck**.
 
+### Email 2 answers (2026-11-19, full text in `john_reply_2.md`)
+
+| Topic | Answer | Design impact |
+|---|---|---|
+| Screening | Four automatic fails: under 21, licensed < 3 years, DUI in past 7 years, unwilling to take a drug test | Replace our assumed questions with these four |
+| Background check | Vendor offers an integration: order + results without the website | Confirms automatic ordering; results can come via integration (email parsing becomes fallback) |
+| Drug test authorization | Vendor's standard authorization, generated per candidate; can be created via the integration | Confirms automatic authorization |
+| CDL permit | Candidate books/takes DMV test alone; doesn't share permit during the process; recruiter asks for it and verifies at the very end, before the offer | Our flow collects the photo at the permit stage (earlier) — a deliberate change to decide on |
+| Training | Trainer checks Zoom attendance and marks completion in a shared spreadsheet; recruiters check it "when they remember" | Another inbox-style gap: completion sits in a spreadsheet; automate the handoff |
+| Texting | Consider WhatsApp, the trial account, or other providers; they'll send phone numbers in advance; $100 reimbursable | Opens real-phone options for the demo |
+
 ## 5. Options considered
 
 We mapped what we *could* build for each of the 5 stages plus the recruiter side and shared systems. Full list with picks in `scope_decisions.md`.
@@ -415,6 +426,11 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Value panels: speed to first contact (measured), recruiter hours saved (automated actions × editable minutes), what-if to hit 35 hires (sliders on real funnel pass rates); sortable charts | Show value with visible, editable assumptions; no invented outcomes |
 | 11-19 | Weekly trend is clickable (filter dashboard to that week's applicants, or open that week's applicants/hires); sortable depot table with conversion, time to hire, stuck, lowest converters highlighted; ⓘ definitions on every metric | Drill from a number to the people behind it; prevent misreads |
 | 11-19 | Demo data: ~1,500 candidates / 150 days (steady-state trend, no warm-up ramp) / 12 depots, fictional 555-01XX numbers (never texted or called), labeled illustrative, tuned to modest results | Show scale without fabricating an improvement claim |
+| 11-19 | Permit: match their process. Requested and verified at the end, as a recruiter review before the offer can go out | Some steps need a human; the system tees them up instead of bypassing them |
+| 11-19 | BG results via vendor integration; email parsing kept as fallback | John: vendor integration covers results |
+| 11-19 | Training completion: watch the trainer's shared spreadsheet; marking complete moves the candidate on automatically | Trainer's workflow unchanged; removes "recruiters check when they remember" |
+| 11-19 | Screening = John's four automatic fails (21+, licensed 3+ yrs, no DUI in 7 yrs, willing to drug test); failures still go to recruiter review | Match their process; John earlier said a recruiter reviews before any rejection |
+| 11-19 | Real-phone texting for the demo via WhatsApp (Twilio sandbox); SMS stays wired for when approval lands; trial account as fallback; voice on our number | Carrier approval may not arrive; John suggested WhatsApp; widely used by Spanish-speaking workers |
 | 11-19 | Voice turns use Claude Haiku 5.5 (SMS stays on Sonnet 5.5); 0.5s merge window for split utterances | Live calls need ~2s replies; code still makes every decision, so the smaller model is safe |
 | 11-19 | Voice both outbound (follow-up calls, "call me now") and inbound | One conversation brain across SMS, voice, and simulator |
 | 11-19 | Unknown inbound callers get a polite close (no DRIVE prompt) | Applications come through Workday |

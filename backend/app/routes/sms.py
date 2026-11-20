@@ -25,12 +25,18 @@ EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
 
 @router.post("/inbound")
 async def inbound(request: Request, s: Session = Depends(get_session)):
+    """SMS and WhatsApp both arrive here (WhatsApp senders look like 'whatsapp:+1...')."""
     form = await _verified_form(request)
-    phone, body = form.get("From", ""), (form.get("Body") or "").strip()
+    raw_from, body = form.get("From", ""), (form.get("Body") or "").strip()
+    channel = Channel.whatsapp if raw_from.startswith("whatsapp:") else Channel.sms
+    phone = raw_from.removeprefix("whatsapp:")
     c = s.exec(select(Candidate).where(Candidate.phone == phone).order_by(Candidate.created_at.desc())).first()
     if not c:
-        log.info("SMS from unknown number %s: %r", phone, body[:60])
+        log.info("Message from unknown number %s: %r", phone, body[:60])
         return Response(EMPTY_TWIML, media_type="application/xml")
+    if c.preferred_channel != channel and channel == Channel.whatsapp:
+        c.preferred_channel = channel  # they reached us on WhatsApp: keep the conversation there
+        log_event(s, c, "channel_changed", Actor.candidate, to=channel.value)
 
     if int(form.get("NumMedia", "0") or 0) > 0 and c.stage.value == "cdl_permit":
         # Permit photo (picture message). Download from Twilio and hand to the permit check.
@@ -40,23 +46,23 @@ async def inbound(request: Request, s: Session = Depends(get_session)):
         from ..models import Message as Msg
         url, mtype = form.get("MediaUrl0"), form.get("MediaContentType0", "image/jpeg")
         data = httpx.get(url, auth=(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"]), follow_redirects=True).content
-        s.add(Msg(candidate_id=c.id, direction="in", channel=Channel.sms, sender="candidate", body=body or "[photo]"))
+        s.add(Msg(candidate_id=c.id, direction="in", channel=channel, sender="candidate", body=body or "[photo]"))
         permit_photo_received(s, c, data, mtype)
         return Response(EMPTY_TWIML, media_type="application/xml")
 
     word = body.lower().strip(" .!")
     if word in STOP_WORDS:
-        s.add(Message(candidate_id=c.id, direction="in", channel=Channel.sms, sender="candidate", body=body))
+        s.add(Message(candidate_id=c.id, direction="in", channel=channel, sender="candidate", body=body))
         c.opted_out = True
         log_event(s, c, "opted_out", Actor.candidate, keyword=word)
         s.commit()
     elif word in START_WORDS and c.opted_out:
-        s.add(Message(candidate_id=c.id, direction="in", channel=Channel.sms, sender="candidate", body=body))
+        s.add(Message(candidate_id=c.id, direction="in", channel=channel, sender="candidate", body=body))
         c.opted_out = False
         log_event(s, c, "opted_in", Actor.candidate, keyword=word)
         s.commit()
     else:
-        handle_inbound(s, c, body, Channel.sms)  # replies are texted back by conversation.send()
+        handle_inbound(s, c, body, channel)  # replies go back on the same channel via conversation.send()
     return Response(EMPTY_TWIML, media_type="application/xml")
 
 
