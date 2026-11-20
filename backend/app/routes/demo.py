@@ -373,6 +373,23 @@ class ChannelReq(BaseModel):
     channel: str  # sms | whatsapp
 
 
+class LiveReq(BaseModel):
+    phone: str
+    live: bool
+
+
+@router.post("/candidate/live")
+def set_live(r: LiveReq, s: Session = Depends(get_session)):
+    """Per candidate: send their texts to the real phone (live) or only show them in the Console (simulated, default)."""
+    from ..conversation import log_event
+    from ..models import Actor
+    c = _find(s, r.phone)
+    c.live_messages = r.live
+    log_event(s, c, "live_messages_" + ("on" if r.live else "off"), Actor.system, via="demo")
+    s.commit()
+    return {"ok": True, "live": r.live}
+
+
 @router.post("/candidate/channel")
 def set_channel(r: ChannelReq, s: Session = Depends(get_session)):
     """Switch how the candidate is texted (SMS or WhatsApp). Future messages go on the new channel."""

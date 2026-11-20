@@ -467,6 +467,7 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-20 | Headline metric: offers sent with only one recruiter click (the permit check), plus recruiter touches per hire | The permit check stays human on purpose (legal document); everything else is automated, and the metric says so honestly |
 | 11-20 | WhatsApp moves from the Vonage sandbox to Prime Pupil's own WhatsApp Business number (+1 555-888-5805, via Vonage, JWT-signed) | Sandbox hit its 100/month cap mid-testing. Candidates message first (QR code on /join, prefilled "Prime Pupil"), which opens WhatsApp's 24-hour window; unknown numbers get the apply link back. Approved templates for business-initiated messages are the production follow-up |
 | 11-20 | Webhooks answer immediately and process in the background; permanent send errors fail fast and aren't retried | A used-up quota plus in-request retries froze the whole site on 11-19 night |
+| 11-20 | Demo: texts are simulated by default; a per-candidate "Live texts" switch in the Console sends them to the real phone. Panelists do the voice part; the presenter drives WhatsApp live (new Vonage sandbox) | Meta disabled the new WhatsApp Business account (Twilio 63112) on demo morning; SMS still awaits carrier registration. Calls are unaffected |
 
 ## 18. Polish backlog
 

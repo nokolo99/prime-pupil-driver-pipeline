@@ -178,6 +178,9 @@ def _retry_failed_messages(s: Session) -> int:
             m.delivery = "gave_up"
             continue
         c = s.get(Candidate, m.candidate_id)
+        if not c.live_messages:
+            m.delivery = "simulated"
+            continue
         m.attempts += 1
         try:
             m.provider_id = messaging.send_text(m.channel.value, c.phone, m.body)

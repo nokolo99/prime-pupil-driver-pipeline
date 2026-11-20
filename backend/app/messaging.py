@@ -39,9 +39,13 @@ def vonage_ready() -> bool:
     return bool(k and s and "paste" not in k and "paste" not in s)
 
 
+def _sandbox() -> bool:
+    return os.getenv("VONAGE_SANDBOX", "true").lower() == "true"
+
+
 def _vonage_base(channel: str) -> str:
     # The sandbox only covers WhatsApp/Messenger/Viber; SMS always uses the real Messages API.
-    sandbox = os.getenv("VONAGE_SANDBOX", "true").lower() == "true" and channel != "sms"
+    sandbox = _sandbox() and channel != "sms"
     return "https://messages-sandbox.nexmo.com/v1/messages" if sandbox else "https://api.nexmo.com/v1/messages"
 
 
@@ -65,7 +69,7 @@ def _vonage_auth() -> dict:
     path = os.getenv("VONAGE_PRIVATE_KEY_PATH", "")
     if not key and path and os.path.exists(path):
         key = open(path).read()
-    if app_id and key:
+    if app_id and key and not _sandbox():  # the sandbox only takes key/secret
         import uuid
         import jwt
         t = int(time.time())

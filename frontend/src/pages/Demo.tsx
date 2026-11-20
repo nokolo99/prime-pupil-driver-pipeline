@@ -130,6 +130,11 @@ export default function Demo() {
                   className={`px-3 py-1.5 ${cand.preferred_channel === ch ? "bg-emerald-800 text-white" : "bg-white hover:bg-stone-50"}`}>{ch === "whatsapp" ? "WhatsApp" : "SMS"}</button>
               ))}
             </div>
+            <button title="Simulated: texts only show in the Console phone. Live: they also go to this candidate's real phone."
+              onClick={() => act("/demo/candidate/live", { phone, live: !cand.live_messages }, cand.live_messages ? `Live texts off: ${cand.first_name}'s texts only show here.` : `Live texts on: ${cand.first_name}'s texts now go to their phone too.`)}
+              className={`rounded-lg border px-3 py-1.5 text-sm ${cand.live_messages ? "border-rose-300 bg-rose-50 font-medium text-rose-800" : "bg-white text-stone-600 hover:bg-stone-50"}`}>
+              {cand.live_messages ? "● Live texts ON" : "○ Live texts off (simulated)"}
+            </button>
             <Link to={`/candidates/${cand.id}`} className="text-sm text-emerald-800 underline">Open recruiter view →</Link>
             <button className={btn} onClick={() => { setPicking(true); setQ(""); }}>Change candidate</button>
           </div>

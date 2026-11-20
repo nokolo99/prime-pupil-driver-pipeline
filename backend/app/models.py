@@ -132,6 +132,7 @@ class Candidate(SQLModel, table=True):
     email: Optional[str] = None
     preferred_language: str = "en"          # en, es, ...
     preferred_channel: Channel = Channel.sms
+    live_messages: bool = False   # demo: texts actually go to their phone only when switched on in the Console
     depot_id: Optional[int] = Field(default=None, foreign_key="depot.id")
     recruiter_id: Optional[int] = Field(default=None, foreign_key="recruiter.id")
     source: str = "career_page"

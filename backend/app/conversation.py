@@ -90,6 +90,9 @@ def _deliver_sms(s: Session, candidate: Candidate, msg: Message) -> None:
     if telephony.is_fictional(candidate.phone) or not messaging.enabled():
         msg.delivery = "skipped"
         return
+    if not candidate.live_messages:
+        msg.delivery = "simulated"  # shown in the Console phone; switched on per candidate for the live demo
+        return
     msg.attempts += 1
     try:
         msg.provider_id = messaging.send_text(msg.channel.value, candidate.phone, msg.body)
