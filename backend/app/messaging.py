@@ -40,17 +40,37 @@ def _vonage_base(channel: str) -> str:
     return "https://messages-sandbox.nexmo.com/v1/messages" if sandbox else "https://api.nexmo.com/v1/messages"
 
 
+import threading
+import time
+
+_vonage_lock = threading.Lock()
+_vonage_last = [0.0]
+VONAGE_MIN_GAP_S = 1.2   # sandbox allows ~1 message/second; we often send 2-3 in a row at stage changes
+
+
 def vonage_send(channel: str, to: str, body: str) -> Optional[str]:
+    """Send via Vonage, paced to the sandbox rate limit and retried on 429 so messages are never dropped
+    (and arrive in order: the lock serializes sends)."""
     import httpx2 as httpx
     if not vonage_ready():
         log.warning("Vonage not configured; message to %s not sent", to)
         return None
     sender = os.getenv("VONAGE_WHATSAPP_FROM" if channel == "whatsapp" else "VONAGE_SMS_FROM", "")
     payload = {"message_type": "text", "text": body, "to": to.lstrip("+"), "from": sender.lstrip("+"), "channel": channel}
-    r = httpx.post(_vonage_base(channel), json=payload, auth=(os.environ["VONAGE_API_KEY"], os.environ["VONAGE_API_SECRET"]), timeout=15)
-    if r.status_code >= 300:
-        raise RuntimeError(f"Vonage {r.status_code}: {r.text[:200]}")
-    return r.json().get("message_uuid")
+    with _vonage_lock:
+        for attempt in range(5):
+            wait = VONAGE_MIN_GAP_S - (time.monotonic() - _vonage_last[0])
+            if wait > 0:
+                time.sleep(wait)
+            r = httpx.post(_vonage_base(channel), json=payload, auth=(os.environ["VONAGE_API_KEY"], os.environ["VONAGE_API_SECRET"]), timeout=15)
+            _vonage_last[0] = time.monotonic()
+            if r.status_code == 429:
+                time.sleep(1.5 * (attempt + 1))  # back off, then retry
+                continue
+            if r.status_code >= 300:
+                raise RuntimeError(f"Vonage {r.status_code}: {r.text[:200]}")
+            return r.json().get("message_uuid")
+    raise RuntimeError("Vonage 429: still rate-limited after retries")
 
 
 def vonage_valid_webhook(auth_header: str) -> bool:
