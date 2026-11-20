@@ -10,7 +10,7 @@ import secrets
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -68,3 +68,44 @@ def get_candidates(r: GetCandidatesReq, s: Session = Depends(get_session)):
 def list_applications(s: Session = Depends(get_session)):
     """For the demo: see what's in fake Workday."""
     return s.exec(select(MockWorkdayApplication).order_by(MockWorkdayApplication.id.desc()).limit(50)).all()
+
+
+
+class MoveCandidate(BaseModel):
+    job_application_id: str
+    next_step: Optional[str] = None
+    disposition: Optional[str] = None
+
+
+def _app(s: Session, ja: str) -> MockWorkdayApplication:
+    row = s.exec(select(MockWorkdayApplication).where(MockWorkdayApplication.job_application_id == ja)).first()
+    if not row:
+        raise HTTPException(404, f"Job application {ja} not found")
+    return row
+
+
+@router.post("/Recruiting/Move_Candidate")
+def move_candidate(m: MoveCandidate, s: Session = Depends(get_session)):
+    """Workday Move_Candidate: move to the next recruiting step, or to a disposition (decline)."""
+    row = _app(s, m.job_application_id)
+    if m.disposition:
+        row.disposition, row.current_step = m.disposition, "Dispositioned"
+    elif m.next_step:
+        row.current_step = m.next_step
+    row.updated_at = now()
+    s.commit()
+    return {"job_application_id": row.job_application_id, "current_step": row.current_step, "disposition": row.disposition}
+
+
+class OfferReq(BaseModel):
+    job_application_id: str
+    terms: dict = {}
+
+
+@router.post("/Recruiting/Offer")
+def offer(o: OfferReq, s: Session = Depends(get_session)):
+    """Workday Offer: initiate the offer for a job application (Workday generates the letter from its template)."""
+    row = _app(s, o.job_application_id)
+    row.current_step, row.updated_at = "Offer", now()
+    s.commit()
+    return {"job_application_id": row.job_application_id, "offer_event_id": f"OFR-{secrets.token_hex(3).upper()}", "status": "In Progress"}

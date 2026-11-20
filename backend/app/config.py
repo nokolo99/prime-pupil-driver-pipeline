@@ -277,3 +277,16 @@ RELAY_TRANSCRIPTION_PROVIDER = "Deepgram"
 RELAY_LANGUAGE = "multi"
 # <Say> voices for the short non-conversational bits (voicemail, unknown caller).
 VOICES = {"en": ("Polly.Joanna-Neural", "en-US"), "es": ("Polly.Lupe-Neural", "es-US")}
+
+
+# ---------- Workday mapping (ASSUMED step names; IT confirms their business process) ----------
+WORKDAY_STEPS = {
+    "application": "Review", "screening": "Screen", "background_check": "Background Check",
+    "drug_test": "Assessment: DOT Drug Test", "training": "Assessment: CDL Training",
+    "skills_test": "Assessment: Skills Test", "offer": "Offer", "hired": "Ready for Hire",
+}
+WORKDAY_DISPOSITIONS = {
+    "failed_knockout": "Does Not Meet Minimum Qualifications", "failed_background_check": "Background Check Not Cleared",
+    "failed_drug_test": "Drug Screen Not Cleared", "no_response": "Candidate Unresponsive",
+    "took_another_job": "Accepted Other Offer", "withdrew": "Candidate Withdrew", "other": "Other",
+}

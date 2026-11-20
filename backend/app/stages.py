@@ -386,6 +386,7 @@ def _send_offer(s: Session, c: Candidate, step: Step) -> None:
     depot = s.get(Depot, c.depot_id)
     terms = {**OFFER_TERMS, "depot": f"{depot.name} ({depot.city})" if depot else ""}
     s.add(Offer(step_id=step.id, offer_id=o["offer_id"], sign_link=o["link"], terms=terms, sent_at=now()))
+    workday.initiate_offer(s, c, terms)  # Workday's offer process owns the letter, templates and approvals
     step.status, c.status = StepStatus.waiting_on_candidate, CandidateStatus.waiting_on_candidate
     log_event(s, c, "offer_sent", Actor.system, offer_id=o["offer_id"], terms=terms)
     body, en = template("offer_start", c.preferred_language, first_name=c.first_name, link=o["link"])

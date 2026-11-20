@@ -120,6 +120,8 @@ def intake_applicant(s: Session, *, first_name: str, last_name: str, phone: str,
     s.add(ScreeningResult(step_id=step.id))
 
     log_event(s, c, "applied", Actor.system, source="workday", workday_id=workday_id)
+    from . import workday
+    workday.push_stage(s, c, "screening")  # Workday: Review -> Screen (we've started screening them)
 
     if not sms_consent:
         create_task(s, c, "no_sms_consent", "Applied without SMS consent: contact by phone or email", priority=2)

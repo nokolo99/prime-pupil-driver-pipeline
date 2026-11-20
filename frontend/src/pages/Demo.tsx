@@ -13,10 +13,14 @@ export default function Demo() {
   const [note, setNote] = useState("");
   const end = useRef<HTMLDivElement>(null);
 
-  const [outbox, setOutbox] = useState<{ id: number; workday_id: string | null; action: string; payload: Record<string, unknown> }[]>([]);
+  const [outbox, setOutbox] = useState<{ id: number; workday_id: string | null; action: string; payload: Record<string, unknown>; status: string }[]>([]);
+  const [wdApps, setWdApps] = useState<{ id: number; job_application_id: string; candidate_id: string; first_name: string; last_name: string; job_requisition_id: string; current_step: string; disposition: string | null }[]>([]);
   useEffect(() => { api<Lookups>("/lookups").then(setLk); }, []);
   useEffect(() => {
-    const load = () => { api<typeof outbox>("/demo/workday-outbox").then(setOutbox); };
+    const load = () => {
+      api<typeof outbox>("/demo/workday-outbox").then(setOutbox);
+      fetch("/mock-workday/applications").then((r) => r.json()).then(setWdApps).catch(() => {});
+    };
     load();
     const t = setInterval(load, 3000);
     return () => clearInterval(t);
@@ -221,10 +225,28 @@ export default function Demo() {
         </div>
 
         <h2 className="pt-4 text-lg font-semibold">Workday: what we sent</h2>
-        <p className="text-sm text-stone-500">Mock outbound connector. In production, these are Workday API calls.</p>
+        <p className="text-sm text-stone-500">Our connector's calls to Workday (outbox: recorded with each change, delivered right after, retried if Workday is down).</p>
         <div className="max-h-48 divide-y overflow-y-auto rounded-lg border bg-white text-xs">
           {outbox.length === 0 && <p className="p-3 text-stone-500">Nothing sent yet.</p>}
-          {outbox.map((o) => <div key={o.id} className="p-2 font-mono">{o.workday_id ?? "—"} · {o.action} · {JSON.stringify(o.payload)}</div>)}
+          {outbox.map((o) => (
+            <div key={o.id} className="flex gap-2 p-2 font-mono">
+              <span className={`w-14 shrink-0 ${o.status === "sent" ? "text-emerald-700" : o.status === "failed" ? "text-rose-700" : "text-stone-400"}`}>{o.status}</span>
+              <span className="w-20 shrink-0">{o.workday_id ?? "—"}</span>
+              <span className="w-28 shrink-0 font-semibold">{o.action}</span>
+              <span className="truncate text-stone-600">{String(o.payload.next_step ?? o.payload.disposition ?? (o.action === "Offer" ? "start offer" : ""))}</span>
+            </div>
+          ))}
+        </div>
+
+        <h2 className="pt-4 text-lg font-semibold">Fake Workday: job applications</h2>
+        <p className="text-sm text-stone-500">What Prime Pupil's Workday would show. Steps update as our connector calls Move_Candidate / Offer.</p>
+        <div className="max-h-56 overflow-y-auto rounded-lg border bg-white text-xs">
+          <table className="w-full"><thead className="text-left text-stone-500"><tr><th className="p-2">Application</th><th>Candidate</th><th>Requisition</th><th>Step</th><th>Disposition</th></tr></thead>
+            <tbody className="divide-y">
+              {wdApps.length === 0 && <tr><td colSpan={5} className="p-2 text-stone-500">No applications yet (WORKDAY_INTAKE=poll).</td></tr>}
+              {wdApps.map((a) => <tr key={a.id}><td className="p-2 font-mono">{a.job_application_id}</td><td>{a.first_name} {a.last_name}</td><td className="font-mono">{a.job_requisition_id}</td>
+                <td className="font-medium">{a.current_step}</td><td className="text-rose-700">{a.disposition ?? ""}</td></tr>)}
+            </tbody></table>
         </div>
       </section>
 

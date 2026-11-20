@@ -261,12 +261,17 @@ class Setting(SQLModel, table=True):
 
 
 class WorkdayOutbox(SQLModel, table=True):
-    """Every write we would make to Workday. The mock connector records it here; the real one would call the API."""
+    """Transactional outbox for Workday writes: recorded in the same save as the change, delivered right
+    after (and retried) by workday.dispatch_outbox(). Workday being slow or down never blocks a candidate."""
     id: Optional[int] = Field(default=None, primary_key=True)
     candidate_id: int = Field(foreign_key="candidate.id", index=True)
-    workday_id: Optional[str] = None
-    action: str                         # e.g. disposition, stage_update
+    workday_id: Optional[str] = None    # Workday Job Application ID
+    action: str                         # Workday operation: Move_Candidate, Offer
     payload: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    status: str = "pending"             # pending / sent / failed / skipped
+    attempts: int = 0
+    response: Optional[str] = None
+    sent_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=now)
 
 

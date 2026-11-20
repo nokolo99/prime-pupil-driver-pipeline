@@ -31,3 +31,21 @@ def init_db() -> None:
 def get_session():
     with Session(engine) as session:
         yield session
+
+
+
+# Workday outbox: deliver queued writes right after the transaction that queued them commits
+# (in a background thread, so the request never waits on Workday). The engine tick retries failures.
+from sqlalchemy import event as _sa_event  # noqa: E402
+from sqlalchemy.orm import Session as _OrmSession  # noqa: E402
+
+
+@_sa_event.listens_for(_OrmSession, "after_commit")
+def _dispatch_workday(session):
+    if session.info.pop("workday_pending", False):
+        import threading
+
+        def run():
+            from .workday import dispatch_outbox
+            dispatch_outbox()
+        threading.Thread(target=run, daemon=True).start()

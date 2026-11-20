@@ -14,7 +14,7 @@ import os
 
 from sqlmodel import Session
 
-from .models import Actor, Candidate, Event, WorkdayOutbox
+from .models import Actor, Candidate, Event, WorkdayOutbox, now
 
 
 log = logging.getLogger(__name__)
@@ -70,15 +70,60 @@ def poll_new_applicants(s: Session) -> int:
 
 
 def _write(s: Session, c: Candidate, action: str, payload: dict) -> None:
+    """Queue a Workday write in the same transaction as the change (outbox). Delivered after commit."""
     s.add(WorkdayOutbox(candidate_id=c.id, workday_id=c.workday_id, action=action, payload=payload))
     s.add(Event(candidate_id=c.id, type="workday_synced", actor=Actor.system, details={"action": action, **payload}))
-
-
-def push_disposition(s: Session, c: Candidate, decision: str, reason: str | None = None, by: str | None = None) -> None:
-    """Recruiter decision (advance / reject / dropped) written back to the candidate's Workday record."""
-    _write(s, c, "disposition", {"decision": decision, "reason": reason, "decided_by": by})
+    s.info["workday_pending"] = True
 
 
 def push_stage(s: Session, c: Candidate, stage: str) -> None:
-    """Keep the Workday candidate record's step in sync with ours."""
-    _write(s, c, "stage_update", {"stage": stage})
+    """Touchpoints 2-3: candidate moved forward -> Move_Candidate to the matching Workday step."""
+    from .config import WORKDAY_STEPS
+    _write(s, c, "Move_Candidate", {"stage": stage, "next_step": WORKDAY_STEPS.get(stage, stage)})
+
+
+def push_disposition(s: Session, c: Candidate, decision: str, reason: str | None = None, by: str | None = None) -> None:
+    """Touchpoint 4 (reject / drop) -> Move_Candidate to a disposition. Approvals are recorded as a note; the
+    stage move that follows is what Workday sees. Touchpoint 6 (hired) -> Ready for Hire."""
+    from .config import WORKDAY_DISPOSITIONS, WORKDAY_STEPS
+    if decision in ("reject", "dropped"):
+        _write(s, c, "Move_Candidate", {"decision": decision, "disposition": WORKDAY_DISPOSITIONS.get(reason or "other", "Other"),
+                                        "reason": reason, "decided_by": by})
+    elif decision == "hired":
+        _write(s, c, "Move_Candidate", {"decision": "hired", "next_step": WORKDAY_STEPS["hired"], "reason": reason})
+    else:  # recruiter approved a flag: note only
+        s.add(Event(candidate_id=c.id, type="workday_note", actor=Actor.system, details={"decision": decision, "reason": reason}))
+
+
+def initiate_offer(s: Session, c: Candidate, terms: dict) -> None:
+    """Touchpoint 5: start the offer in Workday (Workday's offer process, templates and approvals)."""
+    _write(s, c, "Offer", {"terms": terms})
+
+
+def dispatch_outbox(limit: int = 50) -> int:
+    """Deliver pending Workday writes (called right after commits and on every engine tick for retries)."""
+    import httpx2 as httpx
+    from sqlmodel import select
+    from .db import engine
+    sent = 0
+    with Session(engine) as s:
+        rows = s.exec(select(WorkdayOutbox).where(WorkdayOutbox.status.in_(["pending", "failed"]), WorkdayOutbox.attempts < 5)
+                      .order_by(WorkdayOutbox.id).limit(limit)).all()
+        for row in rows:
+            row.attempts += 1
+            if not row.workday_id or not row.workday_id.startswith("JA-"):
+                row.status, row.response = "skipped", "No Workday job application (direct-mode or demo record)"
+                continue
+            body = {"job_application_id": row.workday_id, **{k: v for k, v in row.payload.items() if k in
+                    ("next_step", "disposition", "terms")}}
+            try:
+                r = httpx.post(f"{_base()}/Recruiting/{row.action}", json=body, timeout=10)
+                row.status = "sent" if r.status_code < 300 else "failed"
+                row.response = r.text[:300]
+                if row.status == "sent":
+                    row.sent_at = now()
+                    sent += 1
+            except Exception as e:
+                row.status, row.response = "failed", str(e)[:300]
+        s.commit()
+    return sent

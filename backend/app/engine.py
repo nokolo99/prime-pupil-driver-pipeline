@@ -159,6 +159,8 @@ def tick(s: Session) -> int:
     """Returns how many actions were taken."""
     t = now()
     actions = _appointments(s, t) + _overdue(s, t) + _training_reminders(s, t) + _watch_training_sheet(s)
+    from .workday import dispatch_outbox
+    dispatch_outbox()  # retry any Workday writes that failed
     steps = s.exec(select(Step).where(Step.status == StepStatus.waiting_on_candidate)).all()
     for step in steps:
         c = s.get(Candidate, step.candidate_id)
