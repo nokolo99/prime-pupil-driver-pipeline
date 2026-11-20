@@ -52,7 +52,8 @@ async def inbound_photo(phone: str = Form(...), photo: UploadFile = File(...), s
     if not c:
         raise HTTPException(404, "No applicant with this phone.")
     session.add(Message(candidate_id=c.id, direction="in", channel=Channel.web, sender="candidate", body="[photo]"))
-    if c.stage.value != "cdl_permit":
+    from ..stages import permit_awaiting_photo
+    if not permit_awaiting_photo(session, c):
         session.commit()
         return {"ok": True, "note": "Photo received, but no step needs a photo right now."}
     permit_photo_received(session, c, await photo.read(), photo.content_type or "image/jpeg")

@@ -14,7 +14,7 @@ from . import vendors
 from .config import DEFAULT_FOLLOW_UP
 from .models import (Actor, BackgroundCheck, Candidate, CandidateStatus, Clinic, Depot, DrugTest, DropReason, Event,
                      Message, Offer, PermitCheck, Recruiter, ScreeningResult, SkillsTest, Stage, Step, StepResult,
-                     StepStatus, Task, Training, now)
+                     StepStatus, Task, Training, TrainingSheetRow, now)
 
 FIRST = ["James", "Maria", "Robert", "Linda", "Michael", "Patricia", "David", "Barbara", "William", "Susan", "Richard",
          "Karen", "Joseph", "Nancy", "Thomas", "Lisa", "Charles", "Betty", "Daniel", "Sandra", "Kevin", "Donna", "Brian",
@@ -33,15 +33,14 @@ PATH = [
     (Stage.screening, (0.1, 0.6, 4), 0.45, [DropReason.failed_knockout, DropReason.no_response, DropReason.took_another_job]),
     (Stage.background_check, (3, 6, 15), 0.30, [DropReason.no_response, DropReason.failed_background_check, DropReason.took_another_job]),
     (Stage.drug_test, (3, 7, 18), 0.55, [DropReason.no_response, DropReason.failed_drug_test, DropReason.took_another_job, DropReason.withdrew]),
-    (Stage.cdl_permit, (4, 9, 20), 0.25, [DropReason.no_response, DropReason.withdrew]),
-    (Stage.training, (6, 7, 9), 0.05, [DropReason.withdrew]),
+    (Stage.training, (6, 8, 14), 0.42, [DropReason.withdrew, DropReason.no_response]),  # incl. never getting the permit (parallel track)
     (Stage.skills_test, (1, 3, 6), 0.10, [DropReason.other, DropReason.withdrew]),
     (Stage.offer, (0.5, 1.5, 5), 0.06, [DropReason.withdrew, DropReason.took_another_job]),
 ]
 REVIEW_TASKS = {Stage.screening: ("review_knockout", "Screening flags: Licensed under 3 years"),
                 Stage.background_check: ("review_background_flag", "Background check needs review: 1 speeding violation (2023)"),
                 Stage.drug_test: ("review_drug_result", "Drug test result: non-negative"),
-                Stage.cdl_permit: ("review_permit", "Verify CDL permit photo (details match)"),
+                Stage.offer: ("review_permit", "Verify CDL permit before offer (details match)"),
                 Stage.skills_test: ("review_skills_test", "Skills test failed (score 64): allow a retest?")}
 
 
@@ -108,15 +107,29 @@ def seed_demo(s: Session, n: int = 1500, days: int = 150, seed: int = 7) -> dict
             if stage == Stage.screening:
                 ev("screening_completed", end, result="pass")
                 s.add(ScreeningResult(step_id=step.id, is_21_plus=True, has_valid_license=True, years_licensed=random.randint(3, 25),
-                                      recent_violations=False, availability_ok=True, has_cdl_or_permit=random.random() < 0.15))
+                                      dui_past_7_years=False, willing_drug_test=True))
             nxt = PATH[i + 1][0] if i + 1 < len(PATH) else Stage.hired
             ev("stage_changed", end, **{"from": stage.value, "to": nxt.value})
+            if stage == Stage.offer:  # hired: permit was verified before the offer
+                _permit(s, c, t - timedelta(days=12), verified_at=t - timedelta(days=0.3))
             t = end
         if outcome == "hired":
             c.stage, c.stage_entered_at, c.status = Stage.hired, t, CandidateStatus.hired
         counts[outcome] += 1
     s.commit()
     return counts
+
+
+def _permit(s, c, started, verified_at=None, self_reported=False, photo_requested=False):
+    """The CDL permit is a parallel track that starts with training."""
+    st = Step(candidate_id=c.id, stage=Stage.cdl_permit, started_at=started,
+              status=StepStatus.passed if verified_at else StepStatus.in_progress if self_reported else StepStatus.waiting_on_candidate,
+              result=StepResult.pass_ if verified_at else None, completed_at=verified_at)
+    s.add(st)
+    s.flush()
+    s.add(PermitCheck(step_id=st.id, verified_at=verified_at, self_reported_at=started + timedelta(days=5) if (self_reported or verified_at) else None,
+                      photo_requested_at=now() - timedelta(hours=6) if photo_requested else None))
+    return st
 
 
 def _make_current(s, c, step, stage, entered, t_now, clinics, ev):
@@ -147,18 +160,25 @@ def _make_current(s, c, step, stage, entered, t_now, clinics, ev):
         s.add(DrugTest(step_id=step.id, vendor_case_id=o["case_id"], booking_link=o["booking_link"], auth_sent_at=entered,
                        clinic_id=random.choice(clinics).id if booked else None,
                        appointment_at=(t_now + timedelta(days=random.randint(1, 4), hours=random.choice([1, 3, 5]))) if booked else None))
-    elif stage == Stage.cdl_permit:
-        s.add(PermitCheck(step_id=step.id))
     elif stage == Stage.training:
         step.status, c.status = StepStatus.in_progress, CandidateStatus.in_progress
-        s.add(Training(step_id=step.id, cohort_start=entered + timedelta(days=2), session_link=vendors.training_session(c.id)["link"]))
+        start = entered + timedelta(days=2)
+        s.add(Training(step_id=step.id, cohort_start=start, session_link=vendors.training_session(c.id)["link"]))
+        s.add(TrainingSheetRow(candidate_id=c.id, trainee=f"{c.first_name} {c.last_name}", cohort=start.strftime("Week of %b %-d"),
+                               completed=False, processed=False))
+        _permit(s, c, entered, self_reported=random.random() < 0.4)
     elif stage == Stage.skills_test:
         tst = vendors.skills_test(c.id)
         s.add(SkillsTest(step_id=step.id, test_id=tst["test_id"], test_link=tst["link"], attempts=1))
+        _permit(s, c, entered - timedelta(days=8), self_reported=random.random() < 0.7)
     elif stage == Stage.offer:
-        o = vendors.offer_letter(c.id)
-        s.add(Offer(step_id=step.id, offer_id=o["offer_id"], sign_link=o["link"], sent_at=entered,
-                    terms={"title": "School Bus Driver", "pay_rate": "$24.00/hour"}))
+        if random.random() < 0.5:  # still waiting on the permit photo / recruiter verification
+            _permit(s, c, entered - timedelta(days=12), self_reported=True, photo_requested=True)
+        else:
+            _permit(s, c, entered - timedelta(days=12), verified_at=entered)
+            o = vendors.offer_letter(c.id)
+            s.add(Offer(step_id=step.id, offer_id=o["offer_id"], sign_link=o["link"], sent_at=entered,
+                        terms={"title": "School Bus Driver", "pay_rate": "$24.00/hour"}))
 
     if stage in REVIEW_TASKS and random.random() < 0.07:   # a few need a human
         type_, reason = REVIEW_TASKS[stage]

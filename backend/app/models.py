@@ -179,6 +179,8 @@ class ScreeningResult(SQLModel, table=True):
     violations_note: Optional[str] = None
     availability_ok: Optional[bool] = None
     has_cdl_or_permit: Optional[bool] = None
+    dui_past_7_years: Optional[bool] = None
+    willing_drug_test: Optional[bool] = None
     knockout_flags: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     unclear_counts: dict = Field(default_factory=dict, sa_column=Column(JSON))  # clarification attempts per field
 
@@ -272,6 +274,8 @@ class WorkdayOutbox(SQLModel, table=True):
 
 class PermitCheck(SQLModel, table=True):
     step_id: int = Field(foreign_key="step.id", primary_key=True)
+    self_reported_at: Optional[datetime] = None   # candidate said they have it (stops reminders)
+    photo_requested_at: Optional[datetime] = None  # asked before the offer, for recruiter verification
     image_path: Optional[str] = None
     extracted: dict = Field(default_factory=dict, sa_column=Column(JSON))  # what Claude read off the photo
     mismatches: list[str] = Field(default_factory=list, sa_column=Column(JSON))
@@ -306,3 +310,14 @@ class Offer(SQLModel, table=True):
     sent_at: Optional[datetime] = None
     signed_at: Optional[datetime] = None
     declined_at: Optional[datetime] = None
+
+
+class TrainingSheetRow(SQLModel, table=True):
+    """Stand-in for the trainer's shared spreadsheet (prod: their Google Sheet / Excel, read via API)."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    candidate_id: int = Field(foreign_key="candidate.id", index=True)
+    trainee: str
+    cohort: str
+    completed: bool = False
+    marked_at: Optional[datetime] = None
+    processed: bool = False   # our watcher has acted on the "completed" mark

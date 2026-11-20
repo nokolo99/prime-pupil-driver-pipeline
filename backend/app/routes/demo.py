@@ -260,10 +260,11 @@ def sample_permit(phone: str, s: Session = Depends(get_session)):
 def send_sample_permit(r: CandidateReq, s: Session = Depends(get_session)):
     from ..models import Channel, Message
     from ..stages import permit_photo_received
+    from ..stages import permit_awaiting_photo
     c = _find(s, r.phone)
-    if c.stage.value != "cdl_permit":
+    if not permit_awaiting_photo(s, c):
         from fastapi import HTTPException
-        raise HTTPException(400, "Candidate isn't at the CDL permit step.")
+        raise HTTPException(400, "Candidate doesn't have an unverified CDL permit (they need to be past the drug test).")
     png = sample_permit(r.phone, s).body
     s.add(Message(candidate_id=c.id, direction="in", channel=Channel.web, sender="candidate", body="[photo]"))
     permit_photo_received(s, c, png, "image/png")
@@ -290,8 +291,45 @@ def clear_seed(s: Session = Depends(get_session)):
     step_ids = [st.id for st in s.exec(select(Step).where(Step.candidate_id.in_(ids))).all()]
     for model in (ScreeningResult, BackgroundCheck, DrugTest, PermitCheck, Training, SkillsTest, Offer):
         s.exec(delete(model).where(model.step_id.in_(step_ids)))
-    for model in (Step, Message, Event, Task, WorkdayOutbox):
+    from ..models import TrainingSheetRow
+    for model in (Step, Message, Event, Task, WorkdayOutbox, TrainingSheetRow):
         s.exec(delete(model).where(model.candidate_id.in_(ids)))
     s.exec(delete(Candidate).where(Candidate.id.in_(ids)))
     s.commit()
     return {"cleared": len(ids)}
+
+
+
+# ---------- Demo: the trainer's shared spreadsheet (stand-in) ----------
+
+@router.get("/training-sheet")
+def training_sheet(s: Session = Depends(get_session)):
+    from ..models import TrainingSheetRow
+    return s.exec(select(TrainingSheetRow).order_by(TrainingSheetRow.id.desc()).limit(200)).all()
+
+
+class SheetEdit(BaseModel):
+    completed: bool
+
+
+@router.post("/training-sheet/{row_id}")
+def edit_training_sheet(row_id: int, e: SheetEdit, s: Session = Depends(get_session)):
+    """The trainer ticks 'Completed' in the sheet. Our watcher (engine tick) notices and acts."""
+    from ..models import TrainingSheetRow, now
+    row = s.get(TrainingSheetRow, row_id)
+    row.completed, row.marked_at = e.completed, now()
+    if not e.completed:
+        row.processed = False
+    s.commit()
+    tick(s)  # in prod the watcher polls on a schedule; here we check immediately so the demo is snappy
+    return {"ok": True}
+
+
+@router.post("/candidate/says-permit")
+def says_permit(r: CandidateReq, s: Session = Depends(get_session)):
+    """Simulate the candidate texting 'I got my permit'."""
+    from ..stages import permit_self_reported
+    c = _find(s, r.phone)
+    permit_self_reported(s, c)
+    s.commit()
+    return {"ok": True}

@@ -67,6 +67,26 @@ def bg_form_submit(order_id: str, s: Session = Depends(get_session)):
     return bg_form(order_id, s)
 
 
+class BgWebhookIn(BaseModel):
+    order_id: str
+    event: Literal["form_completed", "result"]
+    status: Optional[Literal["clear", "consider"]] = None
+    summary: str = ""
+
+
+@router.post("/api/integrations/bg-vendor/webhook")
+def bg_webhook(e: BgWebhookIn, s: Session = Depends(get_session)):
+    """Background-check vendor integration (John: orders and results go through it). Email parsing is the fallback."""
+    if e.event == "form_completed":
+        c = stages.bg_form_completed(s, e.order_id)
+    else:
+        c = stages.bg_result(s, e.order_id, e.status or "consider",
+                             e.summary or ("No records found." if e.status == "clear" else "Report needs review."))
+    if c is None:
+        raise HTTPException(404, "Unknown order (or already processed)")
+    return {"ok": True}
+
+
 class BgEmailIn(BaseModel):
     sender: str = ""
     subject: str

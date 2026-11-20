@@ -8,27 +8,24 @@ CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-5-5")
 # Live phone calls need fast replies; Haiku is much quicker and the code still makes every decision.
 CLAUDE_MODEL_VOICE = os.getenv("CLAUDE_MODEL_VOICE", "claude-haiku-5-5")
 
-# ---------- Screening (ASSUMED, confirm in email 2, Q15) ----------
+# ---------- Screening (from John, email 2) ----------
 # Asked in this order. "field" is the ScreeningResult column the answer is stored in.
 SCREENING_QUESTIONS = [
     {"field": "is_21_plus", "ask": "Are you 21 or older?"},
-    {"field": "has_valid_license", "ask": "Do you have a valid driver's license?"},
     {"field": "years_licensed", "ask": "How many years have you had your driver's license?"},
-    {"field": "recent_violations", "ask": "Any DUI, license suspension, or serious traffic violations in the last 5 years?"},
-    {"field": "availability_ok", "ask": "Can you work a split shift (mornings and afternoons) during the school year?"},
-    {"field": "has_cdl_or_permit", "ask": "Do you already have a CDL or a CDL learner's permit?"},
+    {"field": "dui_past_7_years", "ask": "Have you had a DUI in the past 7 years?"},
+    {"field": "willing_drug_test", "ask": "Are you willing to take a DOT drug test?"},
 ]
 
-MIN_YEARS_LICENSED = 3  # ASSUMED
+MIN_YEARS_LICENSED = 3
 
-# Knockout rules: (field, check that returns True when the answer should be FLAGGED, label for recruiter).
-# Flags never reject anyone. They create a review task for a recruiter.
+# John: any one of these is an automatic fail. We still never reject by text: a flag creates a
+# recruiter review task (John also said a recruiter reviews before anyone is rejected).
 KNOCKOUT_RULES = [
     ("is_21_plus", lambda v: v is False, "Under 21"),
-    ("has_valid_license", lambda v: v is False, "No valid driver's license"),
     ("years_licensed", lambda v: v is not None and v < MIN_YEARS_LICENSED, f"Licensed under {MIN_YEARS_LICENSED} years"),
-    ("recent_violations", lambda v: v is True, "Recent DUI / suspension / serious violation"),
-    ("availability_ok", lambda v: v is False, "Can't work split shift"),
+    ("dui_past_7_years", lambda v: v is True, "DUI in the past 7 years"),
+    ("willing_drug_test", lambda v: v is False, "Not willing to take a drug test"),
 ]
 
 # How many times the agent may re-ask an unclear answer before flagging it for a recruiter.
@@ -41,9 +38,9 @@ FACTS = """
 - Role: School bus driver. Schedule is a split shift during the school year (morning and afternoon routes).
 - Pay: ASSUMED $24/hour; paid CDL training at the same rate.
 - Paid training: Yes. Prime Pupil pays for CDL training (held over Zoom, about 1 week) and the skills test.
-- Requirements: 21+, valid driver's license for 3+ years, clean driving record, pass a background check and DOT drug test, obtain a CDL learner's permit.
+- Requirements: 21+, driver's license for 3+ years, no DUI in the past 7 years, pass a background check and DOT drug test, obtain a CDL learner's permit.
 - Experience: No CDL needed to apply. Prime Pupil helps you get one.
-- Process: screening -> background check -> DOT drug test -> CDL permit -> paid training -> skills test -> offer.
+- Process: screening -> background check -> DOT drug test -> paid CDL training (while you get your CDL learner's permit) -> skills test -> offer. Your recruiter verifies your permit before the offer.
 - Benefits, start dates, specific route assignments: NOT in this sheet. Hand off to a recruiter.
 """.strip()
 
@@ -59,7 +56,7 @@ FOLLOW_UP_SCHEDULE = {
     "screening": DEFAULT_FOLLOW_UP,
     "background_check": DEFAULT_FOLLOW_UP,  # nudging to finish the vendor form (John's #1 holdup)
     "drug_test": DEFAULT_FOLLOW_UP,         # nudging to book / go to the clinic (biggest drop-off)
-    "cdl_permit": DEFAULT_FOLLOW_UP,        # John: last 1-2 weeks are spent waiting on permits
+    "cdl_permit": DEFAULT_FOLLOW_UP,        # runs alongside training; stops when they say they have it
     "skills_test": DEFAULT_FOLLOW_UP,
     "offer": DEFAULT_FOLLOW_UP,             # nudging to sign
 }
@@ -194,16 +191,20 @@ TEMPLATES = {
         "es": "¡Gracias por ir, {first_name}! Los resultados suelen tardar de 2 a 5 días. Te avisaremos cuando lleguen.",
     },
     "drug_negative": {
-        "en": "Great news {first_name}, you passed your drug test! Next step: your CDL learner's permit. We'll send details shortly.",
-        "es": "¡Buenas noticias {first_name}, pasaste tu prueba de drogas! Siguiente paso: tu permiso de aprendiz CDL. Te enviaremos los detalles pronto.",
+        "en": "Great news {first_name}, you passed your drug test!",
+        "es": "¡Buenas noticias {first_name}, pasaste tu prueba de drogas!",
     },
     "permit_start": {
-        "en": "Next step: your CDL learner's permit. Book your DMV knowledge test here: {link} Once you have it, just text us a photo of your permit.",
-        "es": "Siguiente paso: tu permiso de aprendiz CDL. Reserva tu examen en el DMV aquí: {link} Cuando lo tengas, mándanos una foto de tu permiso por mensaje.",
+        "en": "While you train, get your CDL learner's permit: book your DMV knowledge test here: {link} Just text us when you have it.",
+        "es": "Mientras entrenas, saca tu permiso de aprendiz CDL: reserva tu examen del DMV aquí: {link} Avísanos por mensaje cuando lo tengas.",
     },
     "permit_reminder": {
-        "en": "Hi {first_name}, the CDL learner's permit is your next step. Book your DMV test here: {link} Text us a photo once you have it!",
-        "es": "Hola {first_name}, el permiso de aprendiz CDL es tu siguiente paso. Reserva tu examen del DMV aquí: {link} ¡Mándanos una foto cuando lo tengas!",
+        "en": "Hi {first_name}, have you gotten your CDL learner's permit yet? Book your DMV test here: {link} Text us once you have it!",
+        "es": "Hola {first_name}, ¿ya sacaste tu permiso de aprendiz CDL? Reserva tu examen del DMV aquí: {link} ¡Avísanos cuando lo tengas!",
+    },
+    "permit_photo_request": {
+        "en": "Last step before your offer, {first_name}: please text us a clear photo of the front of your CDL learner's permit so your recruiter can verify it.",
+        "es": "Último paso antes de tu oferta, {first_name}: mándanos una foto clara del frente de tu permiso de aprendiz CDL para que tu reclutador lo verifique.",
     },
     "permit_received": {
         "en": "Got your permit photo, thanks {first_name}! A recruiter will confirm it shortly.",
@@ -214,8 +215,8 @@ TEMPLATES = {
         "es": "Hola {first_name}, no pudimos confirmar tu permiso con esa foto. ¿Puedes mandar una foto clara del frente de tu permiso de aprendiz CDL?",
     },
     "training_start": {
-        "en": "Your permit is confirmed! Next step: paid CDL training on Zoom, starting {when}. Join here: {link}",
-        "es": "¡Tu permiso está confirmado! Siguiente paso: entrenamiento CDL pagado por Zoom, empieza {when}. Únete aquí: {link}",
+        "en": "Next step: paid CDL training on Zoom, starting {when}. Join here: {link}",
+        "es": "Siguiente paso: entrenamiento CDL pagado por Zoom, empieza {when}. Únete aquí: {link}",
     },
     "training_day_before": {
         "en": "Reminder: your paid CDL training starts tomorrow, {when}. Join here: {link}",

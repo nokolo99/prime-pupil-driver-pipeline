@@ -51,6 +51,10 @@ def _reminder(s: Session, c: Candidate, step: Step, due_day: int) -> tuple[str, 
         return template("drug_reminder", c.preferred_language, first_name=c.first_name, link=dt.booking_link)
     if step.stage == Stage.cdl_permit:
         from .config import DMV_PERMIT_LINK
+        from .models import PermitCheck
+        pc = s.get(PermitCheck, step.id)
+        if pc and pc.photo_requested_at:  # offer is waiting on the permit photo
+            return template("permit_photo_request", c.preferred_language, first_name=c.first_name)
         return template("permit_reminder", c.preferred_language, first_name=c.first_name, link=DMV_PERMIT_LINK)
     if step.stage == Stage.skills_test:
         return template("skills_reminder", c.preferred_language, first_name=c.first_name, link=s.get(SkillsTest, step.id).test_link)
@@ -135,15 +139,31 @@ def _overdue(s: Session, t) -> int:
     return actions
 
 
+def _watch_training_sheet(s: Session) -> int:
+    """Watch the trainer's shared spreadsheet: a row marked Completed moves the candidate on automatically.
+    (Prod: read their Google Sheet / Excel through its API on this same schedule.)"""
+    from .models import TrainingSheetRow
+    from .stages import training_completed
+    actions = 0
+    for row in s.exec(select(TrainingSheetRow).where(TrainingSheetRow.completed == True, TrainingSheetRow.processed == False)).all():  # noqa: E712
+        c = s.get(Candidate, row.candidate_id)
+        row.processed = True
+        if c and c.stage == Stage.training:
+            log_event(s, c, "training_sheet_completed_detected", Actor.system, cohort=row.cohort)
+            training_completed(s, c)
+            actions += 1
+    return actions
+
+
 def tick(s: Session) -> int:
     """Returns how many actions were taken."""
     t = now()
-    actions = _appointments(s, t) + _overdue(s, t) + _training_reminders(s, t)
+    actions = _appointments(s, t) + _overdue(s, t) + _training_reminders(s, t) + _watch_training_sheet(s)
     steps = s.exec(select(Step).where(Step.status == StepStatus.waiting_on_candidate)).all()
     for step in steps:
         c = s.get(Candidate, step.candidate_id)
-        if step.stage != c.stage:
-            continue
+        if step.stage != c.stage and step.stage != Stage.cdl_permit:
+            continue  # the permit is a parallel track, so it's nudged whatever stage they're in
         if step.stage == Stage.drug_test:
             dt = s.get(DrugTest, step.id)
             if dt and dt.appointment_at:

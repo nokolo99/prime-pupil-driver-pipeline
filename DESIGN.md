@@ -294,14 +294,13 @@ Depot ─┬─< Candidate >── Recruiter
 | Drug test | Authorization + nearest 2–3 clinics (hours, map link); reminders day before + morning of; no-show → "Want to go tomorrow instead?" |
 | Throughout | Can ask anything; "talk to a person" → recruiter task; STOP anytime |
 
-### Screening questions (ASSUMED, configurable; confirm in email 2)
-| # | Question | Type |
+### Screening questions (from John, email 2)
+| # | Question | Automatic fail (→ recruiter review, never rejected by text) |
 |---|---|---|
-| 1 | Are you 21 or older? | Knockout flag → recruiter review |
-| 2 | Valid driver's license? How many years? | Knockout flag if none or < 3 years (assumed threshold) |
-| 3 | Any DUI, suspension, or serious violations in the last 5 years? | Flag → review |
-| 4 | Can you work a split shift (mornings + afternoons) during the school year? | Flag → review |
-| 5 | Do you already have a CDL or learner's permit? | Info only (shortens their path) |
+| 1 | Are you 21 or older? | Under 21 |
+| 2 | How many years have you had your driver's license? | Under 3 years |
+| 3 | Have you had a DUI in the past 7 years? | Yes |
+| 4 | Are you willing to take a DOT drug test? | No |
 
 Rules live in config, not code, so Prime Pupil's team can edit them.
 
@@ -372,10 +371,10 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 
 | Assumption | Why | Status |
 |---|---|---|
-| Screening questions + thresholds (21+, 3 yrs licensed, 5-yr violations, split shift) | John hasn't specified; common school bus requirements | Ask in email 2 (Q15) |
-| BG vendor offers an ordering API | Most major vendors do | Ask in email 2 (Q13) |
+| Screening questions | — | ✅ Confirmed by John (four automatic fails) |
+| BG vendor offers an ordering API | — | ✅ Confirmed by John (integration for orders + results) |
 | Facts sheet: pay $24/hr, paid training at same rate | Placeholder so the agent can answer pay questions; clearly marked in config | Confirm with Prime Pupil |
-| Strict stage order applies to the CDL permit too (no starting early) | Kept John's rule rather than ask | Assumed |
+| CDL permit runs in parallel with training; candidate self-reports; recruiter verifies a photo before the offer | John: permit isn't shared during the process, recruiter verifies at the end | Decided |
 | Offers are sent via Workday's offer process; we trigger it automatically (Workday Recruiting `Offer` operation) instead of generating our own letter. Our mock e-sign page stands in for it | Terms, templates and approvals stay in Workday; no new work | Assumed (asking John, Q6) |
 | Keep Workday synced at every stage (decisions + stage changes), even if recruiters only update it at application and hire | Workday stays accurate with zero double entry | Assumed |
 | FCRA adverse-action notices are out of scope | Edge case | Assumed |
@@ -427,6 +426,7 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Value panels: speed to first contact (measured), recruiter hours saved (automated actions × editable minutes), what-if to hit 35 hires (sliders on real funnel pass rates); sortable charts | Show value with visible, editable assumptions; no invented outcomes |
 | 11-19 | Weekly trend is clickable (filter dashboard to that week's applicants, or open that week's applicants/hires); sortable depot table with conversion, time to hire, stuck, lowest converters highlighted; ⓘ definitions on every metric | Drill from a number to the people behind it; prevent misreads |
 | 11-19 | Demo data: ~1,500 candidates / 150 days (steady-state trend, no warm-up ramp) / 12 depots, fictional 555-01XX numbers (never texted or called), labeled illustrative, tuned to modest results | Show scale without fabricating an improvement claim |
+| 11-19 | CDL is parallel, not strict: training starts after the drug test; permit reminders run alongside and stop when the candidate says they have it ("your recruiter will ask before your offer") | Matches John's process; permit wait no longer blocks training |
 | 11-19 | Permit: match their process. Requested and verified at the end, as a recruiter review before the offer can go out | Some steps need a human; the system tees them up instead of bypassing them |
 | 11-19 | BG results via vendor integration; email parsing kept as fallback | John: vendor integration covers results |
 | 11-19 | Training completion: watch the trainer's shared spreadsheet; marking complete moves the candidate on automatically | Trainer's workflow unchanged; removes "recruiters check when they remember" |

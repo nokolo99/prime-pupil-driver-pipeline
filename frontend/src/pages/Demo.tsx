@@ -156,6 +156,9 @@ export default function Demo() {
           <div className="font-medium">Background check {vctx?.bg ? <span className="font-mono text-xs text-stone-500">{vctx.bg.order_id} · {label(vctx.bg.report_status)}</span> : <span className="text-xs text-stone-400">(not started)</span>}</div>
           {vctx?.bg && <div className="flex flex-wrap gap-2">
             <a className="rounded border px-2 py-1 hover:bg-stone-100" href={vctx.bg.form_link} target="_blank" rel="noreferrer">Open candidate form ↗</a>
+            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => later("/integrations/bg-vendor/webhook", { order_id: vctx.bg!.order_id, event: "result", status: "clear" }, "Vendor integration: background check CLEAR")}>Result (integration): clear</button>
+            <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => later("/integrations/bg-vendor/webhook", { order_id: vctx.bg!.order_id, event: "result", status: "consider", summary: "1 reckless driving violation (2024-03-11)" }, "Vendor integration: background check needs review")}>Result (integration): flagged</button>
+            <span className="self-center text-xs text-stone-400">Fallback:</span>
             <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => setEmail(vctx.bg!.email_clear)}>Result email: clear</button>
             <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => setEmail(vctx.bg!.email_flagged)}>Result email: flagged</button>
           </div>}
@@ -173,11 +176,12 @@ export default function Demo() {
             <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => drugEvent("result", "negative")}>Result: negative</button>
             <button className="rounded border px-2 py-1 hover:bg-stone-100" onClick={() => drugEvent("result", "non_negative")}>Result: non-negative</button>
           </div>}
-          <div className="pt-2 font-medium">CDL permit → training → skills test → offer</div>
+          <div className="pt-2 font-medium">Training (+ CDL permit in parallel) → skills test → permit verified → offer</div>
           <div className="flex flex-wrap gap-2">
-            <button disabled={vctx?.stage !== "cdl_permit"} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later("/demo/send-sample-permit", { phone }, "Sample permit photo sent. Claude is reading it…")}>Send sample permit photo</button>
+            <a className="rounded border px-2 py-1 hover:bg-stone-100" href="/training-roster" target="_blank" rel="noreferrer">Trainer's roster ↗</a>
+            <button disabled={!["training", "skills_test"].includes(vctx?.stage ?? "")} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later("/demo/candidate/says-permit", { phone }, "Candidate says they have their permit: reminders stop.")}>Candidate: "I have my permit"</button>
+            <button disabled={!["training", "skills_test", "offer"].includes(vctx?.stage ?? "")} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later("/demo/send-sample-permit", { phone }, "Sample permit photo sent. Claude is reading it…")}>Send sample permit photo</button>
             <a className="rounded border px-2 py-1 hover:bg-stone-100" href={`/api/demo/sample-permit?phone=${encodeURIComponent(phone)}`} target="_blank" rel="noreferrer">View sample permit ↗</a>
-            <button disabled={vctx?.stage !== "training"} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later(`/tasks/training/${vctx?.candidate_id}/complete`, {}, "Trainer marked training complete.")}>Training complete</button>
             <button disabled={!vctx?.skills || vctx.stage !== "skills_test"} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later("/integrations/skills-platform/webhook", { test_id: vctx?.skills?.test_id, result: "pass", score: 91 }, "Skills platform: PASS (91)")}>Skills test: pass</button>
             <button disabled={!vctx?.skills || vctx.stage !== "skills_test"} className="rounded border px-2 py-1 hover:bg-stone-100 disabled:opacity-40" onClick={() => later("/integrations/skills-platform/webhook", { test_id: vctx?.skills?.test_id, result: "fail", score: 62 }, "Skills platform: FAIL (62)")}>Skills test: fail</button>
             {vctx?.offer && <a className="rounded border px-2 py-1 hover:bg-stone-100" href={vctx.offer.link} target="_blank" rel="noreferrer">Open offer ↗</a>}

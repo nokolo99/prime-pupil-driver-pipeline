@@ -17,10 +17,10 @@ from . import ai, vendors, workday
 from .config import DMV_PERMIT_LINK, LOCAL_TZ, OFFER_TERMS, TRAINING_HOUR, TRAINING_WEEKDAY
 from .conversation import create_task, log_event, send, template
 from .models import (Actor, BackgroundCheck, Candidate, CandidateStatus, Clinic, Depot, DrugTest, Offer, PermitCheck,
-                     Sender, SkillsTest, Stage, Step, StepResult, StepStatus, Training, now)
+                     Sender, SkillsTest, Stage, Step, StepResult, StepStatus, Training, TrainingSheetRow, now)
 
 NEXT_STAGE = {Stage.screening: Stage.background_check, Stage.background_check: Stage.drug_test,
-              Stage.drug_test: Stage.cdl_permit, Stage.cdl_permit: Stage.training,
+              Stage.drug_test: Stage.training, Stage.cdl_permit: Stage.training,
               Stage.training: Stage.skills_test, Stage.skills_test: Stage.offer, Stage.offer: Stage.hired}
 UPLOADS = Path(__file__).resolve().parent.parent / "uploads"
 
@@ -47,10 +47,9 @@ def advance(s: Session, c: Candidate, to: Stage) -> Step:
         _enter_background_check(s, c, step)
     elif to == Stage.drug_test:
         _enter_drug_test(s, c, step)
-    elif to == Stage.cdl_permit:
-        _enter_permit(s, c, step)
     elif to == Stage.training:
         _enter_training(s, c, step)
+        _start_permit_track(s, c)  # CDL permit runs in parallel with training (not a gate)
     elif to == Stage.skills_test:
         _enter_skills(s, c, step)
     elif to == Stage.offer:
@@ -180,7 +179,7 @@ def drug_event(s: Session, case_id: str, event: str, clinic_id: Optional[int] = 
             step.status, step.result = StepStatus.passed, StepResult.pass_
             body, en = template("drug_negative", lang, first_name=c.first_name)
             send(s, c, body, en, Sender.system)
-            advance(s, c, Stage.cdl_permit)
+            advance(s, c, NEXT_STAGE[Stage.drug_test])  # training (+ permit in parallel)
         else:  # non-negative: recruiter decides (never auto-reject)
             step.status, step.result = StepStatus.passed, StepResult.flag
             c.status = CandidateStatus.needs_review
@@ -197,34 +196,62 @@ def _finish(step: Step, result: StepResult = StepResult.pass_) -> None:
     step.result, step.completed_at, step.flag_note = result, now(), None
 
 
-# ---------- CDL permit ----------
+# ---------- CDL permit (parallel track; verified before the offer) ----------
 
-def _enter_permit(s: Session, c: Candidate, step: Step) -> None:
+def permit_step(s: Session, c: Candidate) -> Optional[Step]:
+    return s.exec(select(Step).where(Step.candidate_id == c.id, Step.stage == Stage.cdl_permit)
+                  .order_by(Step.id.desc())).first()
+
+
+def _start_permit_track(s: Session, c: Candidate) -> None:
+    step = Step(candidate_id=c.id, stage=Stage.cdl_permit, status=StepStatus.waiting_on_candidate, started_at=now())
+    s.add(step)
+    s.flush()
     s.add(PermitCheck(step_id=step.id))
-    step.status, c.status = StepStatus.waiting_on_candidate, CandidateStatus.waiting_on_candidate
+    log_event(s, c, "permit_track_started", Actor.system)
     body, en = template("permit_start", c.preferred_language, link=DMV_PERMIT_LINK)
     send(s, c, body, en, Sender.system)
 
 
+def permit_self_reported(s: Session, c: Candidate) -> None:
+    """Candidate says they have their permit: stop reminders. The recruiter verifies it before the offer."""
+    step = permit_step(s, c)
+    if not step:
+        return
+    pc = s.get(PermitCheck, step.id)
+    if pc.self_reported_at:
+        return
+    pc.self_reported_at = now()
+    step.status, step.nudge_count = StepStatus.in_progress, 0
+    log_event(s, c, "permit_self_reported", Actor.candidate)
+
+
+def permit_awaiting_photo(s: Session, c: Candidate) -> bool:
+    step = permit_step(s, c)
+    pc = s.get(PermitCheck, step.id) if step else None
+    return bool(pc and not pc.verified_at)
+
+
 def permit_photo_received(s: Session, c: Candidate, data: bytes, media_type: str) -> None:
     """Candidate sent a permit photo. Claude reads it; code checks it; a recruiter verifies."""
-    step = current_step(s, c)
-    pc = s.get(PermitCheck, step.id) or PermitCheck(step_id=step.id)
+    step = permit_step(s, c)
+    pc = s.get(PermitCheck, step.id)
     UPLOADS.mkdir(exist_ok=True)
     name = f"permit-{c.id}-{uuid.uuid4().hex[:8]}.{media_type.split('/')[-1].replace('jpeg', 'jpg')}"
     (UPLOADS / name).write_bytes(data)
     pc.image_path, pc.received_at = name, now()
+    pc.self_reported_at = pc.self_reported_at or now()
     try:
         read = ai.read_permit(base64.b64encode(data).decode(), media_type)
         pc.extracted = read.model_dump()
         pc.mismatches = _permit_mismatches(c, read)
     except Exception as e:
         pc.extracted, pc.mismatches = {}, [f"Couldn't read the photo automatically ({str(e)[:60]})"]
-    s.add(pc)
-    step.status, step.nudge_count = StepStatus.waiting_on_vendor, 0  # waiting on our own recruiter now
-    c.status = CandidateStatus.needs_review
+    step.status, step.nudge_count = StepStatus.waiting_on_vendor, 0  # waiting on our recruiter now
+    if c.stage == Stage.offer:
+        c.status = CandidateStatus.needs_review
     issues = "; ".join(pc.mismatches) if pc.mismatches else "details match"
-    create_task(s, c, "review_permit", f"Verify CDL permit photo ({issues})", priority=1 if pc.mismatches else 2)
+    create_task(s, c, "review_permit", f"Verify CDL permit before offer ({issues})", priority=1 if pc.mismatches else 2)
     log_event(s, c, "permit_photo_received", Actor.candidate, mismatches=pc.mismatches)
     body, en = template("permit_received", c.preferred_language, first_name=c.first_name)
     send(s, c, body, en, Sender.system)
@@ -249,13 +276,14 @@ def _permit_mismatches(c: Candidate, r: "ai.PermitRead") -> list[str]:
 
 
 def permit_decision(s: Session, c: Candidate, verified: bool) -> None:
-    step = current_step(s, c)
+    step = permit_step(s, c)
     pc = s.get(PermitCheck, step.id)
     if verified:
         pc.verified_at = now()
         _finish(step)
         log_event(s, c, "permit_verified", Actor.recruiter)
-        advance(s, c, Stage.training)
+        if c.stage == Stage.offer:
+            _send_offer(s, c, current_step(s, c))  # permit was the last thing holding the offer
     else:
         step.status, step.started_at, step.nudge_count = StepStatus.waiting_on_candidate, now(), 0
         c.status = CandidateStatus.waiting_on_candidate
@@ -276,6 +304,8 @@ def _next_cohort() -> datetime:
 def _enter_training(s: Session, c: Candidate, step: Step) -> None:
     start, link = _next_cohort(), vendors.training_session(c.id)["link"]
     s.add(Training(step_id=step.id, cohort_start=start, session_link=link))
+    s.add(TrainingSheetRow(candidate_id=c.id, trainee=f"{c.first_name} {c.last_name}".strip(),
+                           cohort=start.astimezone(ZoneInfo(LOCAL_TZ)).strftime("Week of %b %-d")))
     step.status, c.status = StepStatus.in_progress, CandidateStatus.in_progress  # no nudging; session reminders instead
     log_event(s, c, "training_enrolled", Actor.system, cohort_start=start.isoformat())
     body, en = template("training_start", c.preferred_language, when=fmt_when(start), link=link)
@@ -286,7 +316,7 @@ def training_completed(s: Session, c: Candidate, by: Optional[int] = None) -> No
     step = current_step(s, c)
     s.get(Training, step.id).completed_at = now()
     _finish(step)
-    log_event(s, c, "training_completed", Actor.recruiter, actor_id=by)
+    log_event(s, c, "training_completed", Actor.recruiter if by else Actor.system, actor_id=by)
     advance(s, c, Stage.skills_test)
 
 
@@ -335,6 +365,23 @@ def allow_retest(s: Session, c: Candidate) -> None:
 # ---------- Offer ----------
 
 def _enter_offer(s: Session, c: Candidate, step: Step) -> None:
+    """Skills test passed. The offer goes out automatically once the recruiter has verified the permit
+    (John: the recruiter asks for the permit and verifies it at the very end, before the offer)."""
+    p_step = permit_step(s, c)
+    pc = s.get(PermitCheck, p_step.id) if p_step else None
+    if pc and pc.verified_at:
+        _send_offer(s, c, step)
+        return
+    step.status, c.status = StepStatus.waiting_on_candidate, CandidateStatus.waiting_on_candidate
+    if p_step and not pc.image_path:
+        pc.photo_requested_at = now()
+        p_step.status, p_step.nudge_count, p_step.started_at = StepStatus.waiting_on_candidate, 0, now()
+        log_event(s, c, "permit_photo_requested", Actor.system)
+        body, en = template("permit_photo_request", c.preferred_language, first_name=c.first_name)
+        send(s, c, body, en, Sender.system)
+
+
+def _send_offer(s: Session, c: Candidate, step: Step) -> None:
     o = vendors.offer_letter(c.id)
     depot = s.get(Depot, c.depot_id)
     terms = {**OFFER_TERMS, "depot": f"{depot.name} ({depot.city})" if depot else ""}

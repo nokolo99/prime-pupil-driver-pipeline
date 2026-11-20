@@ -7,3 +7,5 @@ dist/
 *.db
 optin-site/
 backend/uploads/
+*.db-wal
+*.db-shm

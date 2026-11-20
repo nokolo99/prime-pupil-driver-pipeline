@@ -34,7 +34,8 @@ def process_incoming(s: Session, phone: str, body: str, channel: Channel, get_ph
         c.preferred_channel = channel  # they reached us on WhatsApp: keep the conversation there
         log_event(s, c, "channel_changed", Actor.candidate, to=channel.value)
 
-    if get_photo and c.stage.value == "cdl_permit":
+    from ..stages import permit_awaiting_photo
+    if get_photo and permit_awaiting_photo(s, c):
         from ..stages import permit_photo_received
         data, mtype = get_photo()
         s.add(Message(candidate_id=c.id, direction="in", channel=channel, sender="candidate", body=body or "[photo]"))

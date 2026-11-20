@@ -10,7 +10,8 @@ type Detail = {
   background_check: Record<string, string | null> | null;
   drug_test: Record<string, string | number | null> | null;
   later: {
-    permit?: { image_path: string | null; extracted: Record<string, string | boolean | null>; mismatches: string[]; received_at: string | null; verified_at: string | null };
+    permit?: { image_path: string | null; extracted: Record<string, string | boolean | null>; mismatches: string[]; received_at: string | null; verified_at: string | null;
+               self_reported_at: string | null; photo_requested_at: string | null };
     training?: { cohort_start: string; completed_at: string | null; session_link: string };
     skills_test?: { test_id: string; attempts: number; result: string | null; score: number | null };
     offer?: { offer_id: string; terms: Record<string, string>; signed_at: string | null; declined_at: string | null };
@@ -21,9 +22,8 @@ const Row = ({ k, v }: { k: string; v: unknown }) => (
 );
 
 const SCREENING_LABELS: Record<string, string> = {
-  is_21_plus: "21 or older", has_valid_license: "Valid license", years_licensed: "Years licensed",
-  recent_violations: "Recent DUI / suspension / serious violation", availability_ok: "Split shift OK",
-  has_cdl_or_permit: "Has CDL or permit",
+  is_21_plus: "21 or older", years_licensed: "Years licensed (3+ required)",
+  dui_past_7_years: "DUI in past 7 years", willing_drug_test: "Willing to take a drug test",
 };
 const fmt = (v: unknown) => (v === null || v === undefined ? "—" : v === true ? "Yes" : v === false ? "No" : String(v));
 
@@ -120,15 +120,17 @@ export default function CandidateDetail() {
           </section>}
 
           {d.later.permit && <section>
-            <h3 className="mb-2 font-semibold">CDL permit</h3>
+            <h3 className="mb-2 font-semibold">CDL permit <span className="text-xs font-normal text-stone-500">(in parallel with training · verified before offer)</span></h3>
             <div className="rounded-lg border bg-white text-sm">
+              <Row k="Candidate says they have it" v={d.later.permit.self_reported_at ? asDate(d.later.permit.self_reported_at).toLocaleString() : "Not yet (reminders running)"} />
+              <Row k="Photo requested for offer" v={d.later.permit.photo_requested_at ? asDate(d.later.permit.photo_requested_at).toLocaleString() : "—"} />
               {d.later.permit.image_path && <a href={`/api/sim/media/${d.later.permit.image_path}`} target="_blank" rel="noreferrer"><img src={`/api/sim/media/${d.later.permit.image_path}`} className="max-h-40 w-full object-contain p-2" /></a>}
               {d.later.permit.mismatches.length > 0
                 ? <div className="bg-rose-50 px-3 py-1.5 text-rose-800">⚠ {d.later.permit.mismatches.join("; ")}</div>
                 : d.later.permit.received_at && <div className="bg-emerald-50 px-3 py-1.5 text-emerald-800">✓ Details match the candidate</div>}
               <Row k="Name on permit" v={d.later.permit.extracted.name} /><Row k="Permit #" v={d.later.permit.extracted.permit_number} />
               <Row k="Class" v={d.later.permit.extracted.license_class} /><Row k="Expires" v={d.later.permit.extracted.expiration_date} />
-              <Row k="Verified" v={d.later.permit.verified_at ? asDate(d.later.permit.verified_at).toLocaleString() : d.later.permit.received_at ? "Awaiting recruiter" : "No photo yet"} />
+              <Row k="Verified by recruiter" v={d.later.permit.verified_at ? asDate(d.later.permit.verified_at).toLocaleString() : d.later.permit.received_at ? "Awaiting recruiter" : "No photo yet"} />
             </div>
           </section>}
 
@@ -137,8 +139,7 @@ export default function CandidateDetail() {
             <div className="rounded-lg border bg-white text-sm">
               <Row k="Cohort starts" v={asDate(d.later.training.cohort_start).toLocaleString()} />
               <Row k="Completed" v={d.later.training.completed_at ? asDate(d.later.training.completed_at).toLocaleString() : "Not yet"} />
-              {c.stage === "training" && <div className="p-2"><button className="rounded border border-emerald-600 px-2 py-1 text-xs text-emerald-800 hover:bg-emerald-50"
-                onClick={() => api(`/tasks/training/${c.id}/complete`, { method: "POST" }).then(() => api<Detail>(`/candidates/${id}`).then(setD))}>Mark training complete</button></div>}
+              {c.stage === "training" && <div className="p-2 text-xs text-stone-500">Completion is picked up automatically from the trainer's <a className="underline" href="/training-roster">training roster</a>.</div>}
             </div>
           </section>}
 

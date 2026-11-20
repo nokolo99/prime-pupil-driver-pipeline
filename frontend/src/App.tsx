@@ -4,6 +4,7 @@ import Pipeline from "./pages/Pipeline";
 import CandidateDetail from "./pages/CandidateDetail";
 import Demo from "./pages/Demo";
 import Insights from "./pages/Insights";
+import TrainingSheet from "./pages/TrainingSheet";
 import { ClockBanner } from "./components";
 
 const link = ({ isActive }: { isActive: boolean }) =>
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/candidates/:id" element={<CandidateDetail />} />
           <Route path="/demo" element={<Demo />} />
           <Route path="/insights" element={<Insights />} />
+          <Route path="/training-roster" element={<TrainingSheet />} />
         </Routes>
       </main>
     </div>

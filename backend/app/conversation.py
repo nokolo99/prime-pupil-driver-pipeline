@@ -273,22 +273,29 @@ def step_facts(s: Session, c: Candidate) -> dict:
                 "sample_collected": bool(dt.collected_at)}
     from .config import DMV_PERMIT_LINK
     from .models import Offer, PermitCheck, SkillsTest, Training
-    if c.stage == Stage.cdl_permit:
-        pc = s.get(PermitCheck, step.id)
-        return {"what": "CDL learner's permit (Class B). Candidate books and takes the written knowledge test at the DMV, "
-                        "then texts us a photo of the permit. Bring ID and proof of residency to the DMV; a small DMV fee applies.",
-                "dmv_link": DMV_PERMIT_LINK, "photo_received": bool(pc and pc.received_at),
-                "how_to_send_proof": "Text a clear photo of the front of the permit to this number."}
+    from .stages import permit_step
+    p_step = permit_step(s, c)
+    pc = s.get(PermitCheck, p_step.id) if p_step else None
+    permit = {"what": "CDL learner's permit (Class B), gotten in parallel with training. Candidate books and takes the "
+                      "written knowledge test at the DMV (bring ID and proof of residency; a small DMV fee applies), then "
+                      "tells us. Their recruiter asks for a photo and verifies it before the offer.",
+              "dmv_link": DMV_PERMIT_LINK,
+              "status": ("verified" if pc and pc.verified_at else "photo received, recruiter verifying" if pc and pc.image_path
+                         else "photo requested for offer" if pc and pc.photo_requested_at
+                         else "candidate says they have it" if pc and pc.self_reported_at else "not yet")} if pc else None
     if c.stage == Stage.training:
         tr = s.get(Training, step.id)
         return {"what": "Paid CDL training over Zoom, about 1 week. Paid at the training rate in the facts.",
-                "starts": fmt_when(tr.cohort_start), "zoom_link": tr.session_link}
+                "starts": fmt_when(tr.cohort_start), "zoom_link": tr.session_link, "cdl_permit": permit}
     if c.stage == Stage.skills_test:
         st = s.get(SkillsTest, step.id)
         return {"what": "CDL skills assessment on an online platform; results come to Prime Pupil automatically.",
-                "test_link": st.test_link, "attempt": st.attempts}
+                "test_link": st.test_link, "attempt": st.attempts, "cdl_permit": permit}
     if c.stage == Stage.offer:
         o = s.get(Offer, step.id)
+        if not o:
+            return {"what": "Offer is ready once the recruiter verifies the CDL permit photo.", "cdl_permit": permit,
+                    "how_to_send_permit": "Text a clear photo of the front of the permit to this number."}
         return {"what": "Job offer, signed electronically.", "sign_link": o.sign_link, "terms": o.terms}
     return {}
 
@@ -324,6 +331,9 @@ def _handle_stage_turn(s: Session, c: Candidate, body: str, channel: Channel) ->
         create_task(s, c, "candidate_withdrawing", f"Candidate may withdraw: “{turn.candidate_message_en[:100]}”", priority=1)
     elif turn.intent == "claims_done":
         log_event(s, c, "candidate_claims_done", Actor.candidate, stage=c.stage.value)
+    elif turn.intent == "has_permit":
+        from .stages import permit_self_reported
+        permit_self_reported(s, c)
 
     send(s, c, turn.reply, turn.reply_en, Sender.ai, channel)
     log_event(s, c, "message_sent", Actor.ai, intent=turn.intent, stage=c.stage.value)
