@@ -106,6 +106,7 @@ def seed_demo(s: Session, n: int = 1500, days: int = 150, seed: int = 7) -> dict
             if result_event:
                 ev(result_event[0], end, actor=Actor.vendor, **result_event[1])
             if stage == Stage.screening:
+                ev("screening_completed", end, result="pass")
                 s.add(ScreeningResult(step_id=step.id, is_21_plus=True, has_valid_license=True, years_licensed=random.randint(3, 25),
                                       recent_violations=False, availability_ok=True, has_cdl_or_permit=random.random() < 0.15))
             nxt = PATH[i + 1][0] if i + 1 < len(PATH) else Stage.hired

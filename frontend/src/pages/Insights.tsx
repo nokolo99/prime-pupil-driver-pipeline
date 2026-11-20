@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, label, type Lookups } from "../api";
 
+type Value = {
+  first_contact_median_s: number | null; first_contact_n: number;
+  automated_30d: Record<string, number>; recruiters: number;
+  stage_conversion: { stage: string; passed: number; lost: number; rate: number | null }[]; applications_30d: number;
+};
 type Data = {
+  value: Value;
   trend: { week_start: string; applications: number; hires: number }[];
   baseline: { hires_per_month: number; days_to_hire: number; goal_hires_per_month: number };
   totals: { candidates: number; active: number; hired_30d: number; lost: number; median_days_to_hire: number | null };
@@ -25,10 +31,40 @@ function Tile({ value, label: l, sub }: { value: string | number; label: string;
 }
 
 // Single-series horizontal bars: one hue, value labeled at the end, hover tooltip.
-function Bars({ rows, max, unit = "", note, onPick }: { rows: { key: string; value: number; tip: string }[]; max: number; unit?: string; note?: (k: string) => string; onPick?: (k: string) => void }) {
+type SortMode = "natural" | "desc" | "asc" | "name";
+const SORT_LABELS: Record<SortMode, string> = { natural: "Stage order", desc: "Largest first", asc: "Smallest first", name: "A–Z" };
+
+function SortPicker({ value, onChange, naturalLabel = "Stage order" }: { value: SortMode; onChange: (m: SortMode) => void; naturalLabel?: string }) {
+  return (
+    <select aria-label="Sort" className="rounded border bg-white px-1.5 py-0.5 text-xs text-stone-600" value={value} onChange={(e) => onChange(e.target.value as SortMode)}>
+      {(Object.keys(SORT_LABELS) as SortMode[]).map((m) => <option key={m} value={m}>{m === "natural" ? naturalLabel : SORT_LABELS[m]}</option>)}
+    </select>
+  );
+}
+
+function sortRows<T extends { key: string; value: number }>(rows: T[], mode: SortMode): T[] {
+  const r = [...rows];
+  if (mode === "desc") r.sort((a, b) => b.value - a.value);
+  if (mode === "asc") r.sort((a, b) => a.value - b.value);
+  if (mode === "name") r.sort((a, b) => label(a.key).localeCompare(label(b.key)));
+  return r;
+}
+
+// A chart card with a title, subtitle and its own sort control.
+function Card({ title, sub, sort, setSort, naturalLabel, children }: { title: string; sub: string; sort?: SortMode; setSort?: (m: SortMode) => void; naturalLabel?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-lg border bg-white p-4">
+      <div className="mb-1 flex items-start justify-between gap-2"><h3 className="font-semibold">{title}</h3>{sort && setSort && <SortPicker value={sort} onChange={setSort} naturalLabel={naturalLabel} />}</div>
+      <p className="mb-3 text-xs text-stone-500">{sub}</p>
+      {children}
+    </section>
+  );
+}
+
+function Bars({ rows, max, unit = "", note, onPick, sort = "natural" }: { rows: { key: string; value: number; tip: string }[]; max: number; unit?: string; note?: (k: string) => string; onPick?: (k: string) => void; sort?: SortMode }) {
   return (
     <div className="space-y-1.5">
-      {rows.map((r) => (
+      {sortRows(rows, sort).map((r) => (
         <div key={r.key} className={`group flex items-center gap-2 text-sm ${onPick ? "cursor-pointer" : ""}`} title={r.tip + (onPick ? " · click to see candidates" : "")} onClick={() => onPick?.(r.key)}>
           <span className="w-28 shrink-0 text-stone-600">{label(r.key)}</span>
           <div className="relative h-5 flex-1">
@@ -73,6 +109,84 @@ function Trend({ data }: { data: Data["trend"] }) {
   );
 }
 
+const MINUTES_DEFAULT: Record<string, { label: string; min: number }> = {
+  text_follow_ups: { label: "Text follow-up", min: 3 },
+  call_follow_ups: { label: "Follow-up call", min: 6 },
+  results_processed: { label: "Checking inbox for a result + updating records", min: 5 },
+  appointment_reminders: { label: "Appointment / training reminder", min: 2 },
+  screenings_completed: { label: "Phone screen", min: 15 },
+  stage_updates_synced: { label: "Updating Workday / spreadsheet after a step", min: 3 },
+};
+
+function fmtDuration(sec: number | null) {
+  if (sec === null) return "—";
+  if (sec < 60) return "< 1 min";
+  if (sec < 3600) return `${Math.round(sec / 60)} min`;
+  if (sec < 86400) return `${(sec / 3600).toFixed(1)} h`;
+  return `${(sec / 86400).toFixed(1)} days`;
+}
+
+function HoursSaved({ v }: { v: Value }) {
+  const [mins, setMins] = useState<Record<string, number>>(() => {
+    try { return { ...Object.fromEntries(Object.entries(MINUTES_DEFAULT).map(([k, x]) => [k, x.min])), ...JSON.parse(localStorage.getItem("pp_minutes") ?? "{}") }; }
+    catch { return Object.fromEntries(Object.entries(MINUTES_DEFAULT).map(([k, x]) => [k, x.min])); }
+  });
+  const set = (k: string, n: number) => { const next = { ...mins, [k]: n }; setMins(next); try { localStorage.setItem("pp_minutes", JSON.stringify(next)); } catch { /* ignore */ } };
+  const total30 = Object.keys(MINUTES_DEFAULT).reduce((sum, k) => sum + (v.automated_30d[k] ?? 0) * (mins[k] ?? 0), 0) / 60;
+  const perWeek = total30 / (30 / 7);
+  return (
+    <div>
+      <div className="flex items-baseline gap-3"><span className="text-3xl font-semibold tabular-nums">{Math.round(perWeek)} h</span><span className="text-sm text-stone-600">recruiter time saved per week</span></div>
+      <p className="text-xs text-stone-500">≈ {(perWeek / v.recruiters).toFixed(1)} h per recruiter per week ({v.recruiters} recruiters) · based on the last 30 days</p>
+      <details className="mt-2 text-sm">
+        <summary className="cursor-pointer text-xs text-stone-500">How this is calculated (edit the minutes)</summary>
+        <table className="mt-2 w-full text-xs">
+          <thead className="text-left text-stone-500"><tr><th className="py-1">Automated action</th><th>Count (30d)</th><th>Minutes each</th><th className="text-right">Hours</th></tr></thead>
+          <tbody>
+            {Object.entries(MINUTES_DEFAULT).map(([k, x]) => (
+              <tr key={k} className="border-t"><td className="py-1">{x.label}</td><td className="tabular-nums">{(v.automated_30d[k] ?? 0).toLocaleString()}</td>
+                <td><input type="number" min={0} className="w-14 rounded border px-1" value={mins[k]} onChange={(e) => set(k, Number(e.target.value))} /></td>
+                <td className="text-right tabular-nums">{(((v.automated_30d[k] ?? 0) * (mins[k] ?? 0)) / 60).toFixed(0)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="mt-1 text-xs text-stone-400">Minutes are assumptions about how long each task takes a recruiter by hand today. Adjust to your team's reality.</p>
+      </details>
+    </div>
+  );
+}
+
+function WhatIf({ v, goal, baseline }: { v: Value; goal: number; baseline: number }) {
+  const [cut, setCut] = useState<Record<string, number>>({});
+  const stages = v.stage_conversion.filter((c) => c.rate !== null);
+  const project = (adj: boolean) => stages.reduce((p, c) => p * (1 - (1 - (c.rate ?? 1)) * (adj ? 1 - (cut[c.stage] ?? 0) / 100 : 1)), v.applications_30d);
+  const now = project(false), proj = project(true);
+  const pct = (x: number) => Math.min((x / Math.max(goal * 1.3, proj, now)) * 100, 100);
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+        <div><span className="text-3xl font-semibold tabular-nums">{Math.round(proj)}</span> <span className="text-sm text-stone-600">projected hires / month</span></div>
+        <div className="text-xs text-stone-500">Current funnel: {Math.round(now)}/mo · Baseline {baseline} · Goal {goal}</div>
+      </div>
+      <div className="relative mb-4 h-3 rounded-full bg-stone-100">
+        <div className="h-3 rounded-full bg-emerald-700" style={{ width: `${pct(proj)}%` }} />
+        <div className="absolute -top-1 h-5 w-0.5 bg-stone-800" style={{ left: `${pct(goal)}%` }} title={`Goal: ${goal}/mo`} />
+        <span className="absolute -top-5 text-[10px] text-stone-600" style={{ left: `${pct(goal)}%`, transform: "translateX(-50%)" }}>Goal {goal}</span>
+      </div>
+      <div className="space-y-2">
+        {stages.map((c) => (
+          <label key={c.stage} className="flex items-center gap-3 text-sm">
+            <span className="w-28 shrink-0 text-stone-600">{label(c.stage)}</span>
+            <input type="range" min={0} max={75} step={5} value={cut[c.stage] ?? 0} onChange={(e) => setCut({ ...cut, [c.stage]: Number(e.target.value) })} className="flex-1 accent-emerald-700" />
+            <span className="w-56 shrink-0 whitespace-nowrap text-right text-xs text-stone-600">−{cut[c.stage] ?? 0}% drop-off <span className="text-stone-400">· today {Math.round((1 - (c.rate ?? 1)) * 100)}% lost</span></span>
+          </label>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-stone-400">Model: {v.applications_30d} applications/month × each stage's pass rate. Each slider reduces that stage's drop-off; other stages unchanged. An estimate, not a promise.</p>
+    </div>
+  );
+}
+
 const FILTERS = [
   { key: "days", label: "Applied", options: [["", "All time"], ["7", "Last 7 days"], ["30", "Last 30 days"], ["90", "Last 90 days"]] },
   { key: "language", label: "Language", options: [["", "All languages"], ["en", "English"], ["es", "Spanish"], ["other", "Other"]] },
@@ -84,6 +198,8 @@ export default function Insights() {
   const [d, setD] = useState<Data | null>(null);
   const [lk, setLk] = useState<Lookups>({ depots: [], recruiters: [] });
   const [f, setF] = useState<Record<string, string>>({});
+  const [sorts, setSorts] = useState<Record<string, SortMode>>({ funnel: "natural", days: "natural", why: "desc", where: "natural" });
+  const sortFor = (k: string) => ({ sort: sorts[k], setSort: (m: SortMode) => setSorts({ ...sorts, [k]: m }) });
   const nav = useNavigate();
   const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v)).toString();
   useEffect(() => { api<Lookups>("/lookups").then(setLk); }, []);
@@ -137,6 +253,25 @@ export default function Insights() {
         <Tile value={a.advanced ? `${Math.round((a.advanced_no_recruiter / a.advanced) * 100)}%` : "—"} label="Moved forward with no recruiter touch" sub={`${a.follow_ups.toLocaleString()} follow-ups · ${a.results_processed} results processed automatically`} />
       </div>
 
+      <div className="grid gap-3 lg:grid-cols-3">
+        <section className="rounded-lg border bg-white p-4">
+          <h3 className="mb-1 font-semibold">Speed to first contact</h3>
+          <div className="text-3xl font-semibold tabular-nums whitespace-nowrap">{fmtDuration(d.value.first_contact_median_s)}</div>
+          <div className="text-sm text-stone-600">median, application → first message</div>
+          <p className="mt-1 text-xs text-stone-500">Today: a recruiter reaches out "within a few days, sometimes a week." Measured across {d.value.first_contact_n.toLocaleString()} candidates.</p>
+        </section>
+        <section className="rounded-lg border bg-white p-4 lg:col-span-2">
+          <h3 className="mb-1 font-semibold">Recruiter time saved</h3>
+          <HoursSaved v={d.value} />
+        </section>
+      </div>
+
+      <section className="rounded-lg border bg-white p-4">
+        <h3 className="mb-1 font-semibold">What it takes to hit {d.baseline.goal_hires_per_month} hires a month</h3>
+        <p className="mb-4 text-xs text-stone-500">Drag a stage to see what reducing its drop-off does to monthly hires</p>
+        <WhatIf v={d.value} goal={d.baseline.goal_hires_per_month} baseline={d.baseline.hires_per_month} />
+      </section>
+
       <section className="rounded-lg border bg-white p-4">
         <h3 className="mb-1 font-semibold">Weekly trend</h3>
         <p className="mb-2 text-xs text-stone-500">Applications received and hires made per week, last 13 weeks</p>
@@ -144,32 +279,25 @@ export default function Insights() {
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-lg border bg-white p-4">
-          <h3 className="mb-1 font-semibold">Funnel</h3>
-          <p className="mb-3 text-xs text-stone-500">Candidates who reached each stage · % continuing from the previous stage</p>
-          <Bars rows={d.funnel.map((f) => ({ key: f.stage, value: f.reached, tip: `${f.reached} reached ${label(f.stage)}` }))} max={fmax}
+        <Card title="Funnel" sub="Candidates who reached each stage · % continuing from the previous stage" {...sortFor("funnel")}>
+          <Bars sort={sorts.funnel} rows={d.funnel.map((f) => ({ key: f.stage, value: f.reached, tip: `${f.reached} reached ${label(f.stage)}` }))} max={fmax}
             note={(k) => conv(d.funnel.findIndex((x) => x.stage === k))} onPick={(k) => drill(k === "hired" ? { status: "hired" } : { stage: k })} />
-        </section>
-        <section className="rounded-lg border bg-white p-4">
-          <h3 className="mb-1 font-semibold">Median days per stage</h3>
-          <p className="mb-3 text-xs text-stone-500">From entering a stage to completing it</p>
-          <Bars rows={d.days_per_stage.map((x) => ({ key: x.stage, value: x.median_days ?? 0, tip: `${label(x.stage)}: median ${x.median_days ?? "—"} days (n=${x.n})` }))} max={dmax} unit="d" />
-        </section>
-        <section className="rounded-lg border bg-white p-4">
-          <h3 className="mb-1 font-semibold">Why candidates stopped</h3>
-          <p className="mb-3 text-xs text-stone-500">Drop-off and rejection reasons, all stages</p>
-          <Bars rows={d.drop_reasons.map(([r, n]) => ({ key: r, value: n, tip: Object.entries(d.drop_by_stage).filter(([, v]) => v[r]).map(([st, v]) => `${label(st)}: ${v[r]}`).join(" · ") }))} max={rmax}
+        </Card>
+        <Card title="Median days per stage" sub="From entering a stage to completing it" {...sortFor("days")}>
+          <Bars sort={sorts.days} rows={d.days_per_stage.map((x) => ({ key: x.stage, value: x.median_days ?? 0, tip: `${label(x.stage)}: median ${x.median_days ?? "—"} days (n=${x.n})` }))} max={dmax} unit="d"
+            onPick={(k) => drill({ stage: k })} />
+        </Card>
+        <Card title="Why candidates stopped" sub="Drop-off and rejection reasons, all stages" naturalLabel="Default" {...sortFor("why")}>
+          <Bars sort={sorts.why} rows={d.drop_reasons.map(([r, n]) => ({ key: r, value: n, tip: Object.entries(d.drop_by_stage).filter(([, v]) => v[r]).map(([st, v]) => `${label(st)}: ${v[r]}`).join(" · ") }))} max={rmax}
             onPick={(r) => drill({ status: "lost", reason: r })} />
-        </section>
-        <section className="rounded-lg border bg-white p-4">
-          <h3 className="mb-1 font-semibold">Where they stopped</h3>
-          <p className="mb-3 text-xs text-stone-500">Candidates lost at each stage</p>
-          <Bars rows={d.funnel.filter((f) => f.stage !== "hired").map((f) => {
+        </Card>
+        <Card title="Where they stopped" sub="Candidates lost at each stage" {...sortFor("where")}>
+          <Bars sort={sorts.where} rows={d.funnel.filter((f) => f.stage !== "hired").map((f) => {
             const n = Object.values(d.drop_by_stage[f.stage] ?? {}).reduce((x, y) => x + y, 0);
             return { key: f.stage, value: n, tip: Object.entries(d.drop_by_stage[f.stage] ?? {}).map(([r, v]) => `${label(r)}: ${v}`).join(" · ") || "None" };
           })} max={Math.max(...Object.values(d.drop_by_stage).map((v) => Object.values(v).reduce((x, y) => x + y, 0)), 1)}
             onPick={(k) => drill({ status: "lost", stage: k })} />
-        </section>
+        </Card>
       </div>
 
       <section className="overflow-x-auto rounded-lg border bg-white">

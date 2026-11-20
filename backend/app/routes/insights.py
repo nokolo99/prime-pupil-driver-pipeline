@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
 from ..db import get_session
-from ..models import STAGE_ORDER, Actor, Candidate, CandidateStatus, Depot, Event, Stage, Step, StepStatus, Task, TaskStatus, now
+from ..models import (STAGE_ORDER, Actor, Candidate, CandidateStatus, Depot, Event, Message, Stage, Step, StepStatus, Task,
+                      TaskStatus, now)
 
 router = APIRouter(prefix="/api", tags=["insights"])
 
@@ -119,7 +120,42 @@ def insights(depot_id: Optional[int] = None, recruiter_id: Optional[int] = None,
                       "applications": sum(1 for c in cands if start < _aware(c.created_at) <= end),
                       "hires": sum(1 for c in hired if start < _aware(c.stage_entered_at) <= end)})
 
+    # Value 1: speed to first contact (measured: application -> first outbound message).
+    first_out = {}
+    for m in s.exec(select(Message).where(Message.direction == "out")).all():
+        if m.candidate_id in ids and (m.candidate_id not in first_out or m.created_at < first_out[m.candidate_id]):
+            first_out[m.candidate_id] = m.created_at
+    by_id = {c.id: c for c in cands}
+    gaps = [max((_aware(at) - _aware(by_id[cid].created_at)).total_seconds(), 0) for cid, at in first_out.items()]
+
+    # Value 2: automated actions in the last 30 days (the UI multiplies by editable minutes-per-action).
+    recent = [e for e in events if t - _aware(e.created_at) <= timedelta(days=30) and e.actor in (Actor.system, Actor.ai, Actor.vendor)]
+    kinds = Counter()
+    for e in recent:
+        if e.type == "nudge_sent":
+            kinds["call_follow_ups" if e.details.get("kind") == "call" else "text_follow_ups"] += 1
+        elif e.type in ("bg_result_received", "drug_test_result", "skills_test_result"):
+            kinds["results_processed"] += 1
+        elif e.type in ("appointment_reminder", "training_reminder"):
+            kinds["appointment_reminders"] += 1
+        elif e.type == "screening_completed":
+            kinds["screenings_completed"] += 1
+        elif e.type == "stage_changed":
+            kinds["stage_updates_synced"] += 1
+
+    # Value 3: per-stage conversion among candidates who finished the stage (pass vs lost), for the what-if model.
+    conv = []
+    for st in FUNNEL[:-1]:
+        passed = sum(1 for x in steps if x.stage == st and x.status == StepStatus.passed and x.result != None)  # noqa: E711
+        lost_here = sum(drop_by_stage.get(st.value, {}).values())
+        conv.append({"stage": st.value, "passed": passed, "lost": lost_here,
+                     "rate": round(passed / (passed + lost_here), 3) if passed + lost_here else None})
+    apps_30d = sum(1 for c in cands if t - _aware(c.created_at) <= timedelta(days=30))
+
     return {
+        "value": {"first_contact_median_s": round(median(gaps)) if gaps else None, "first_contact_n": len(gaps),
+                  "automated_30d": dict(kinds), "recruiters": len({c.recruiter_id for c in cands if c.recruiter_id}) or 6,
+                  "stage_conversion": conv, "applications_30d": apps_30d},
         "trend": weeks,
         "baseline": BASELINE,
         "totals": {"candidates": len(cands), "active": sum(current.values()) - current.get("hired", 0),
