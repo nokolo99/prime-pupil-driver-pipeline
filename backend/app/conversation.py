@@ -44,9 +44,18 @@ def template(key: str, lang: str, **kw) -> tuple[str, str]:
         return en, en
 
 
+import re as _re
+
+# SMS carrier rules require opt-out language; WhatsApp doesn't (opt-out is still honored on both channels).
+_OPT_OUT_LINE = _re.compile(r"\s*(Reply STOP to (opt out|unsubscribe)\.?|Responde STOP para cancelar\.?)", _re.I)
+
+
 def send(s: Session, candidate: Candidate, body: str, body_en: Optional[str], sender: Sender,
          channel: Optional[Channel] = None) -> Message:
-    """Record an outbound message. On a voice call the voice route speaks it; SMS delivery is plugged in later."""
+    """Record an outbound message and deliver it on the candidate's channel (voice routes speak it themselves)."""
+    if (channel or candidate.preferred_channel) == Channel.whatsapp:
+        body = _OPT_OUT_LINE.sub("", body).strip()
+        body_en = _OPT_OUT_LINE.sub("", body_en).strip() if body_en else body_en
     msg = Message(candidate_id=candidate.id, direction="out", channel=channel or candidate.preferred_channel,
                   sender=sender, body=body, language=candidate.preferred_language,
                   translation_en=body_en if body_en and body_en != body else None)
