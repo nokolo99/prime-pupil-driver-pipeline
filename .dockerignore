@@ -1,0 +1,11 @@
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.db
+**/*.db-wal
+**/*.db-shm
+backend/.env
+backend/uploads
+frontend/dist
+optin-site
+*.pdf

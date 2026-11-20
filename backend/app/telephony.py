@@ -39,7 +39,11 @@ def voice_ready() -> bool:
 
 
 def start(port: int = 8000) -> None:
-    """Open the tunnel (if needed) and point the Twilio number at us. Safe to call when unconfigured."""
+    """Find our public URL and (only where allowed) point the Twilio number at us.
+
+    PUBLIC_URL set explicitly (prod) wins; in dev we read it from the local ngrok agent.
+    TWILIO_CLAIM_NUMBER controls whether this instance repoints the number's webhooks to itself.
+    A phone number forwards to ONE address, so only one instance should claim it (default: prod yes, dev no)."""
     global PUBLIC_URL
     if not PUBLIC_URL:
         # ngrok runs as its own process (see run_tunnel.sh) so app reloads don't drop the tunnel.
@@ -51,7 +55,10 @@ def start(port: int = 8000) -> None:
             log.info("ngrok tunnel: %s", PUBLIC_URL)
         except Exception:
             log.warning("No ngrok tunnel found (run ./run_tunnel.sh); voice disabled")
-    if voice_ready():
+    claim = os.getenv("TWILIO_CLAIM_NUMBER", "true" if os.getenv("APP_ENV", "dev") == "prod" else "false").lower() == "true"
+    if voice_ready() and not claim:
+        log.info("Not repointing the Twilio number (TWILIO_CLAIM_NUMBER=false). Calls/texts go wherever it points now.")
+    if voice_ready() and claim:
         try:
             number = os.environ["TWILIO_PHONE_NUMBER"]
             nums = client().incoming_phone_numbers.list(phone_number=number, limit=1)

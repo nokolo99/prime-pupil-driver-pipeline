@@ -5,6 +5,7 @@ Claude. Each one updates the step, tells the candidate what happens next, and lo
 """
 
 import base64
+import os
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -22,7 +23,7 @@ from .models import (Actor, BackgroundCheck, Candidate, CandidateStatus, Clinic,
 NEXT_STAGE = {Stage.screening: Stage.background_check, Stage.background_check: Stage.drug_test,
               Stage.drug_test: Stage.training, Stage.cdl_permit: Stage.training,
               Stage.training: Stage.skills_test, Stage.skills_test: Stage.offer, Stage.offer: Stage.hired}
-UPLOADS = Path(__file__).resolve().parent.parent / "uploads"
+UPLOADS = Path(os.getenv("UPLOADS_DIR", Path(__file__).resolve().parent.parent / "uploads"))  # prod: on the persistent disk
 
 
 def current_step(s: Session, c: Candidate) -> Step:

@@ -25,7 +25,8 @@ def intake_mode() -> str:
 
 
 def _base() -> str:
-    return os.getenv("WORKDAY_BASE_URL", "http://localhost:8000/mock-workday").rstrip("/")
+    # Default: the fake Workday inside this same app (works locally and on the server via its own port).
+    return os.getenv("WORKDAY_BASE_URL", f"http://localhost:{os.getenv('PORT', '8000')}/mock-workday").rstrip("/")
 
 
 def get_candidates(updated_since: str | None) -> dict:

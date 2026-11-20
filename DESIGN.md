@@ -138,7 +138,8 @@ We mapped what we *could* build for each of the 5 stages plus the recruiter side
 - **Database:** SQLite for the prototype (single file, zero setup). **Postgres in production** (concurrent writes from recruiters, webhooks and timers; managed backups). With SQLModel, the switch is mostly the connection string.
 - **Frontend:** TypeScript + React. Recruiter dashboard and chat simulator.
 - **Why split:** each side in the language the author is strongest in; maps to the brief's two sides (candidate experience in backend over SMS/voice, recruiter experience in dashboard).
-- **Hosting:** build locally (ngrok for real SMS testing); deploy to Render/Railway at the end if time permits. FastAPI serves the built frontend, so it's a single deploy.
+- **Hosting:** dev on the laptop (ngrok); prod on Render (Docker, Starter plan ~$7/mo, 1 GB disk for SQLite + uploads). FastAPI serves the built frontend, so it's a single service (`Dockerfile`, `render.yaml`).
+- **Dev vs prod:** `APP_ENV`, `PUBLIC_URL` (links + webhooks), `DATABASE_URL`, `UPLOADS_DIR`. A phone number forwards to one address, so only the instance with `TWILIO_CLAIM_NUMBER=true` (prod by default) repoints Twilio to itself; Vonage sandbox webhooks are set manually to whichever instance is live.
 
 ## 9. Core design principle: rules decide, AI talks
 

@@ -1,0 +1,45 @@
+# Render blueprint: one always-on Docker web service with a small persistent disk for SQLite + uploads.
+services:
+  - type: web
+    name: prime-pupil
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: APP_ENV
+        value: prod
+      - key: PUBLIC_URL            # set to this service's URL, e.g. https://prime-pupil.onrender.com
+        sync: false
+      - key: DATABASE_URL
+        value: sqlite:////var/data/primepupil.db
+      - key: UPLOADS_DIR
+        value: /var/data/uploads
+      - key: TWILIO_CLAIM_NUMBER   # prod points the Twilio number at itself on startup
+        value: "true"
+      - key: WORKDAY_INTAKE
+        value: poll
+      - key: SMS_PROVIDER
+        value: twilio
+      - key: WHATSAPP_PROVIDER
+        value: vonage
+      - key: VONAGE_SANDBOX
+        value: "true"
+      - key: VONAGE_WHATSAPP_FROM
+        value: "14157386102"
+      - key: TWILIO_PHONE_NUMBER
+        value: "+15187397592"
+      # Secrets: paste in the Render dashboard (never committed)
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: VONAGE_API_KEY
+        sync: false
+      - key: VONAGE_API_SECRET
+        sync: false

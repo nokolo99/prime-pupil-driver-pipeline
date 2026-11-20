@@ -4,6 +4,7 @@ import os
 
 from sqlmodel import Session, SQLModel, create_engine
 
+# Dev: local file. Prod: a file on the persistent disk, e.g. DATABASE_URL=sqlite:////var/data/primepupil.db
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./primepupil.db")
 
 engine = create_engine(

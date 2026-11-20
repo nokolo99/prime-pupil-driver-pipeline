@@ -77,9 +77,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Prime Pupil Driver Pipeline", lifespan=lifespan)
 
+import os  # noqa: E402
+
+APP_ENV = os.getenv("APP_ENV", "dev")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Vite dev server
+    allow_origins=["http://localhost:5173"],  # Vite dev server (prod serves the frontend from this same app)
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -100,4 +104,22 @@ app.include_router(settings_api.router)
 
 @app.get("/api/health")
 def health():
-    return {"ok": True}
+    from . import telephony
+    return {"ok": True, "env": APP_ENV, "public_url": telephony.PUBLIC_URL}
+
+
+# ---------- Prod: serve the built frontend (frontend/dist) from this app ----------
+from pathlib import Path  # noqa: E402
+
+from fastapi.responses import FileResponse  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+DIST = Path(os.getenv("FRONTEND_DIST", Path(__file__).resolve().parents[2] / "frontend" / "dist"))
+if DIST.exists():
+    app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str):
+        """Any non-API route returns the React app (client-side routing handles the rest)."""
+        f = DIST / path
+        return FileResponse(f if path and f.is_file() else DIST / "index.html")
