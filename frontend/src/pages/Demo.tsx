@@ -91,11 +91,11 @@ export default function Demo() {
   // ---- phone ----
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  // The candidate's message shows right away (like a real phone); the "…" bubble covers the AI thinking.
+  const [pending, setPending] = useState<string | null>(null);
   const thread = useRef<HTMLDivElement>(null);
   // Scroll only the phone's thread (scrollIntoView would scroll the whole page).
   useEffect(() => { const el = thread.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs.length, busy, pending]);
-  // The candidate's message shows right away (like a real phone); the "…" bubble covers the AI thinking.
-  const [pending, setPending] = useState<string | null>(null);
   async function send() {
     if (!text.trim() || busy || !phone) return;
     const body = text; setText(""); setPending(body); setBusy(true);
