@@ -271,7 +271,7 @@ def send_sample_permit(r: CandidateReq, s: Session = Depends(get_session)):
 
 @router.post("/seed")
 def seed(s: Session = Depends(get_session)):
-    """Load ~900 realistic demo candidates (90 days) (replaces any previous demo data)."""
+    """Load ~1,500 realistic demo candidates (150 days) (replaces any previous demo data)."""
     clear_seed(s)
     from ..demo_seed import seed_demo
     return seed_demo(s)

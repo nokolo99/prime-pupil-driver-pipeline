@@ -11,8 +11,17 @@ router = APIRouter(prefix="/api", tags=["recruiter"])
 
 
 @router.get("/candidates")
-def list_candidates(session: Session = Depends(get_session)):
-    return session.exec(select(Candidate).order_by(Candidate.created_at.desc())).all()
+def list_candidates(depot_id: int | None = None, recruiter_id: int | None = None, language: str | None = None,
+                    channel: str | None = None, status: str | None = None, days: int | None = None,
+                    stage: str | None = None, reason: str | None = None, session: Session = Depends(get_session)):
+    """Pipeline list. Same filters as Insights so a chart bar can click through to the exact candidates."""
+    from .insights import filtered
+    cands = filtered(session, depot_id, recruiter_id, language, channel, status, days)
+    if stage:
+        cands = [c for c in cands if c.stage.value == stage]
+    if reason:
+        cands = [c for c in cands if c.drop_reason and c.drop_reason.value == reason]
+    return sorted(cands, key=lambda c: c.created_at, reverse=True)
 
 
 @router.get("/candidates/{candidate_id}")

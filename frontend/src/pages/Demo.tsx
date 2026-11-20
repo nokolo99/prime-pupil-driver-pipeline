@@ -191,7 +191,7 @@ export default function Demo() {
         </div>
 
         <h2 className="pt-4 text-lg font-semibold">Demo data</h2>
-        <p className="text-sm text-stone-500">~900 realistic candidates over 90 days across 12 depots (fictional 555-01XX numbers, never texted or called).</p>
+        <p className="text-sm text-stone-500">~1,500 realistic candidates over 150 days across 12 depots (fictional 555-01XX numbers, never texted or called).</p>
         <div className="flex gap-2">
           <button className="rounded border bg-white px-3 py-1 text-sm hover:bg-stone-100" onClick={() => later("/demo/seed", {}, "Demo data loaded.")}>Load demo data</button>
           <button className="rounded border bg-white px-3 py-1 text-sm hover:bg-stone-100" onClick={() => later("/demo/seed/clear", {}, "Demo data cleared.")}>Clear demo data</button>

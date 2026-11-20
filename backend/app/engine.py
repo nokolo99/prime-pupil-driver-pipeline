@@ -177,6 +177,7 @@ def tick(s: Session) -> int:
             try:
                 sid = telephony.place_call(c.phone, c.id, "follow_up")
                 log_event(s, c, "ai_call_placed", Actor.system, attempt=n, day=due_day, call_sid=sid)
+                log_event(s, c, "nudge_sent", Actor.system, attempt=n, day=due_day, kind="call", stage=step.stage.value)
                 step.nudge_count, step.last_nudged_at = n, t
                 actions += 1
                 continue

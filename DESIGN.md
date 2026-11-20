@@ -411,7 +411,8 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Skills test via mock platform webhook; fail → recruiter review (retest or reject) | John: platform offers an integration |
 | 11-19 | Offer auto-generated from template (placeholder terms), mock e-sign; signed → hired, synced to Workday | John: offers can go out automatically |
 | 11-19 | VP Insights tab: funnel, days per stage, hires vs baseline/goal, why/where candidates stopped, by depot, automation share | VP is the decision maker: "speed and volume across all locations" |
-| 11-19 | Demo data: ~900 candidates / 90 days / 12 depots, fictional 555-01XX numbers (never texted or called), labeled illustrative, tuned to modest results | Show scale without fabricating an improvement claim |
+| 11-19 | Insights filters (date, language, channel, status, depot, recruiter) + weekly trend + click-through to Pipeline | VP slices by what matters; Director of Recruiting can act on any number |
+| 11-19 | Demo data: ~1,500 candidates / 150 days (steady-state trend, no warm-up ramp) / 12 depots, fictional 555-01XX numbers (never texted or called), labeled illustrative, tuned to modest results | Show scale without fabricating an improvement claim |
 | 11-19 | Voice turns use Claude Haiku 5.5 (SMS stays on Sonnet 5.5); 0.5s merge window for split utterances | Live calls need ~2s replies; code still makes every decision, so the smaller model is safe |
 | 11-19 | Voice both outbound (follow-up calls, "call me now") and inbound | One conversation brain across SMS, voice, and simulator |
 | 11-19 | Unknown inbound callers get a polite close (no DRIVE prompt) | Applications come through Workday |

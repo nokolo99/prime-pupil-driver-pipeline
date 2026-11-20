@@ -1,18 +1,25 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api, daysSince, label, STAGES, timeAgo, type Candidate, type Lookups } from "../api";
 import { StatusPill } from "../components";
 
 export default function Pipeline() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [lk, setLk] = useState<Lookups>({ depots: [], recruiters: [] });
-  const [stage, setStage] = useState<string | null>(null);
-  const [depot, setDepot] = useState<string>("");
+  const [params, setParams] = useSearchParams();
+  const stage = params.get("stage");
+  const depot = params.get("depot_id") ?? "";
+  const setStage = (v: string | null) => { const p = new URLSearchParams(params); if (v) p.set("stage", v); else p.delete("stage"); setParams(p); };
+  const setDepot = (v: string) => { const p = new URLSearchParams(params); if (v) p.set("depot_id", v); else p.delete("depot_id"); setParams(p); };
+  const extra = new URLSearchParams(params); extra.delete("stage"); extra.delete("depot_id");
+  const extraQs = extra.toString();
   const [sla, setSla] = useState<Record<string, number>>({});
   const [flags, setFlags] = useState<{ candidate_id: number; note: string }[]>([]);
 
   useEffect(() => {
-    api<Candidate[]>("/candidates").then(setCandidates);
+    api<Candidate[]>(`/candidates${extraQs ? `?${extraQs}` : ""}`).then(setCandidates);
+  }, [extraQs]);
+  useEffect(() => {
     api<Lookups>("/lookups").then(setLk);
     api<typeof flags>("/flags").then(setFlags);
     api<{ stage_sla_days: Record<string, number> }>("/config").then((c) => setSla(c.stage_sla_days));
@@ -26,7 +33,10 @@ export default function Pipeline() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Pipeline</h2>
+        <div>
+          <h2 className="text-lg font-semibold">Pipeline</h2>
+          {extraQs && <p className="text-xs text-stone-500">Filtered from Insights: {[...extra.entries()].map(([k, v]) => `${label(k)} = ${label(v)}`).join(" · ")} · <button className="underline" onClick={() => setParams(new URLSearchParams(depot ? { depot_id: depot } : {}))}>clear</button></p>}
+        </div>
         <select className="rounded border bg-white px-2 py-1 text-sm" value={depot} onChange={(e) => setDepot(e.target.value)}>
           <option value="">All depots</option>
           {lk.depots.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}

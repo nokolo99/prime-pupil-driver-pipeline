@@ -1,4 +1,4 @@
-"""Realistic demo data: ~90 days of history across 12 depots, generated through the real data model.
+"""Realistic demo data: ~150 days of history (so the 13-week trend shows a steady state, not a warm-up) across 12 depots, generated through the real data model.
 
 Volume and drop-off shape follow John's numbers (~300 applicants/month, drug test is the
 biggest drop-off). Phone numbers use the reserved fictional 555-01XX range, which
@@ -26,7 +26,7 @@ LAST = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wi
         "Allen", "King", "Wright", "Scott", "Green", "Baker", "Nguyen", "Patel", "Kim", "Okafor", "Ivanova", "Haddad"]
 LAST_ES = ["García", "Rodríguez", "Martínez", "Hernández", "López", "González", "Pérez", "Sánchez", "Ramírez", "Torres",
            "Flores", "Rivera", "Gómez", "Díaz", "Reyes", "Morales", "Cruz", "Ortiz", "Gutiérrez", "Chávez"]
-AREA_CODES = ["518", "315", "607", "716", "845", "914", "585", "631", "347", "929", "680", "838"]
+AREA_CODES = ["518", "315", "607", "716", "845", "914", "585", "631", "347", "929", "680", "838", "212", "646", "718", "516"]
 
 # (stage, duration days (min, mode, max), drop probability, drop reasons)
 PATH = [
@@ -51,7 +51,7 @@ def _phones():
     return iter(nums)
 
 
-def seed_demo(s: Session, n: int = 900, days: int = 90, seed: int = 7) -> dict:
+def seed_demo(s: Session, n: int = 1500, days: int = 150, seed: int = 7) -> dict:
     random.seed(seed)
     t_now = now()
     depots = s.exec(select(Depot)).all()
@@ -88,8 +88,8 @@ def seed_demo(s: Session, n: int = 900, days: int = 90, seed: int = 7) -> dict:
                 _make_current(s, c, step, stage, t, t_now, clinics.get(depot.id, []), ev)
                 break
             end = t + timedelta(days=dur)
-            for k in range(min(int(dur // 2), 6)):        # follow-ups that kept them moving
-                ev("nudge_sent", t + timedelta(days=1 + k * 2), attempt=k + 1, stage=stage.value)
+            for k, (d, kind) in enumerate([x for x in DEFAULT_FOLLOW_UP if x[0] < dur][:6]):  # follow-ups that kept them moving
+                ev("nudge_sent", t + timedelta(days=d), attempt=k + 1, stage=stage.value, kind=kind)
             if random.random() < p_drop:                    # lost at this stage
                 outcome = "dropped"
                 reason = random.choice(reasons)
@@ -123,12 +123,12 @@ def _make_current(s, c, step, stage, entered, t_now, clinics, ev):
     idle = (t_now - entered).total_seconds() / 86400
     step.status, c.status = StepStatus.waiting_on_candidate, CandidateStatus.waiting_on_candidate
     # Pretend the follow-ups that would have fired already did (no backlog when the engine starts).
-    sent = [d for d, _ in DEFAULT_FOLLOW_UP if d <= idle]
+    sent = [(d, kind) for d, kind in DEFAULT_FOLLOW_UP if d <= idle]
     step.nudge_count = len(sent)
     if sent:
-        step.last_nudged_at = entered + timedelta(days=sent[-1])
-    for k, d in enumerate(sent):
-        ev("nudge_sent", entered + timedelta(days=d), attempt=k + 1, stage=stage.value)
+        step.last_nudged_at = entered + timedelta(days=sent[-1][0])
+    for k, (d, kind) in enumerate(sent):
+        ev("nudge_sent", entered + timedelta(days=d), attempt=k + 1, stage=stage.value, kind=kind)
 
     if stage == Stage.screening:
         s.add(ScreeningResult(step_id=step.id))

@@ -22,11 +22,41 @@ def _aware(dt):
     return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
-@router.get("/insights")
-def insights(depot_id: Optional[int] = None, s: Session = Depends(get_session)):
+LOST = (CandidateStatus.dropped, CandidateStatus.rejected)
+
+
+def filtered(s: Session, depot_id=None, recruiter_id=None, language=None, channel=None, status=None, days=None):
+    """Shared filters (Insights + Pipeline click-through). days = applied within the last N days."""
+    t = now()
     cands = s.exec(select(Candidate)).all()
     if depot_id:
         cands = [c for c in cands if c.depot_id == depot_id]
+    if recruiter_id:
+        cands = [c for c in cands if c.recruiter_id == recruiter_id]
+    if language:
+        cands = [c for c in cands if (c.preferred_language == language) if language in ("en", "es")] if language in ("en", "es") \
+            else [c for c in cands if c.preferred_language not in ("en", "es")]
+    if days:
+        cands = [c for c in cands if t - _aware(c.created_at) <= timedelta(days=days)]
+    if status == "active":
+        cands = [c for c in cands if c.status not in LOST and c.stage != Stage.hired]
+    elif status == "hired":
+        cands = [c for c in cands if c.stage == Stage.hired]
+    elif status == "lost":
+        cands = [c for c in cands if c.status in LOST]
+    if channel:
+        ids = {c.id for c in cands}
+        called = {e.candidate_id for e in s.exec(select(Event).where(Event.type.in_(["ai_call_placed", "call_answered", "call_inbound", "nudge_sent"]))).all()
+                  if e.candidate_id in ids and (e.type != "nudge_sent" or e.details.get("kind") == "call")}
+        cands = [c for c in cands if (c.id in called) == (channel == "calls")]
+    return cands
+
+
+@router.get("/insights")
+def insights(depot_id: Optional[int] = None, recruiter_id: Optional[int] = None, language: Optional[str] = None,
+             channel: Optional[str] = None, status: Optional[str] = None, days: Optional[int] = None,
+             s: Session = Depends(get_session)):
+    cands = filtered(s, depot_id, recruiter_id, language, channel, status, days)
     ids = {c.id for c in cands}
     steps = [st for st in s.exec(select(Step)).all() if st.candidate_id in ids]
     t = now()
@@ -81,7 +111,16 @@ def insights(depot_id: Optional[int] = None, s: Session = Depends(get_session)):
     touched = {e.candidate_id for e in events if e.actor == Actor.recruiter}
     advanced = {e.candidate_id for e in events if e.type == "stage_changed"}
 
+    # Weekly trend (last 13 weeks): applications vs hires, same unit so one axis.
+    weeks = []
+    for w in range(12, -1, -1):
+        start, end = t - timedelta(days=7 * (w + 1)), t - timedelta(days=7 * w)
+        weeks.append({"week_start": start.date().isoformat(),
+                      "applications": sum(1 for c in cands if start < _aware(c.created_at) <= end),
+                      "hires": sum(1 for c in hired if start < _aware(c.stage_entered_at) <= end)})
+
     return {
+        "trend": weeks,
         "baseline": BASELINE,
         "totals": {"candidates": len(cands), "active": sum(current.values()) - current.get("hired", 0),
                    "hired_30d": hires_30d, "lost": len(lost),
