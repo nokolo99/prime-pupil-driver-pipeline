@@ -21,6 +21,10 @@ function build(c: Cadence, giveUp: number) {
   return { texts, calls };
 }
 
+const SAMPLE: Record<string, string> = { first_name: "Maria", link: "https://example.com/abc", clinic: "Troy Occupational Health",
+  when: "Tue Nov 24, 9:00 AM", time: "10:00 AM", clinics: "• Troy Occupational Health, 120 Main St\n• Troy Urgent Care, 45 Route 9" };
+const fill = (t: string) => t.replace(/\{(\w+)\}/g, (_, k) => SAMPLE[k] ?? `{${k}}`);
+
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const r = await fetch(`/api/settings${path}`, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
   const j = await r.json();
