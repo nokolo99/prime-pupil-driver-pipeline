@@ -125,4 +125,7 @@ if DIST.exists():
     def spa(path: str):
         """Any non-API route returns the React app (client-side routing handles the rest)."""
         f = DIST / path
-        return FileResponse(f if path and f.is_file() else DIST / "index.html")
+        if path and f.is_file():
+            return FileResponse(f)
+        # Never cache the page itself, so a deploy reaches everyone on the next load (assets are content-hashed).
+        return FileResponse(DIST / "index.html", headers={"Cache-Control": "no-cache"})

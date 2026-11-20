@@ -94,6 +94,11 @@ def _deliver_sms(s: Session, candidate: Candidate, msg: Message) -> None:
     try:
         msg.provider_id = messaging.send_text(msg.channel.value, candidate.phone, msg.body)
         msg.delivery = "sent"
+    except messaging.PermanentSendError as e:
+        msg.delivery = "rejected"  # e.g. quota used up or invalid number: retrying won't help
+        log.warning("SMS to %s rejected: %s", candidate.phone, e)
+        s.add(Event(candidate_id=candidate.id, type="sms_failed", actor=Actor.system,
+                    details={"error": str(e)[:200], "permanent": True}))
     except Exception as e:
         msg.delivery = "failed"  # the engine retries failed sends on its next ticks
         log.warning("SMS to %s failed: %s", candidate.phone, e)

@@ -112,6 +112,15 @@ def ui_config():
     return {"stage_sla_days": settings.stage_sla_days(), "drop_reasons": [r.value for r in DropReason]}
 
 
+@router.get("/join-info")
+def join_info():
+    """Public: what the /join page needs for its WhatsApp QR code (the number candidates message first)."""
+    import os
+    provider = os.getenv("WHATSAPP_PROVIDER", "twilio").lower()
+    number = os.getenv("VONAGE_WHATSAPP_FROM" if provider == "vonage" else "TWILIO_WHATSAPP_FROM", "")
+    return {"whatsapp": number.removeprefix("whatsapp:").lstrip("+"), "prefill": "Prime Pupil"}
+
+
 @router.get("/lookups")
 def lookups(session: Session = Depends(get_session)):
     return {

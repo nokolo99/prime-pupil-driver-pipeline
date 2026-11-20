@@ -8,6 +8,7 @@ import TrainingSheet from "./pages/TrainingSheet";
 import Settings from "./pages/Settings";
 import Apply from "./pages/Apply";
 import Workday from "./pages/Workday";
+import Join from "./pages/Join";
 import DemoGate from "./DemoGate";
 import { useEffect, useState } from "react";
 import { demoHeaders, setDemoKey } from "./api";
@@ -28,6 +29,7 @@ export default function App() {
   // The career page is public (shared with applicants): without the demo password it shows on its own, no recruiter app around it.
   const { pathname } = useLocation();
   if (pathname === "/apply" && !unlocked) return <main className="min-h-screen px-4 py-10"><Apply unlocked={false} /></main>;
+  if (pathname === "/join") return <main className="min-h-screen px-4 py-10"><Join /></main>;  // public, shared on screen
   return (
     <div className="min-h-screen">
       <ClockBanner />

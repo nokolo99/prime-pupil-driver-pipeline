@@ -9,3 +9,5 @@ optin-site/
 backend/uploads/
 *.db-wal
 *.db-shm
+backend/secrets/
+*.key

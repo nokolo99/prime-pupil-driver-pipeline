@@ -465,10 +465,12 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Voice: two native voices (English 8DzKSPdg…, Spanish 13VFWfJ7…) instead of one bilingual voice | The bilingual voice drifted between American, British and Mexican accents; each voice now only speaks its own language. Chosen in blind phone tests, matched to sound like coworkers |
 | 11-20 | Career page is public (no password); recruiter app stays open; demo tools stay locked | Panelists apply from a shared link; rate-limited (30/hr, 3 per number) since each application can trigger a real call or text |
 | 11-20 | Headline metric: offers sent with only one recruiter click (the permit check), plus recruiter touches per hire | The permit check stays human on purpose (legal document); everything else is automated, and the metric says so honestly |
+| 11-20 | WhatsApp moves from the Vonage sandbox to Prime Pupil's own WhatsApp Business number (+1 555-888-5805, via Vonage, JWT-signed) | Sandbox hit its 100/month cap mid-testing. Candidates message first (QR code on /join, prefilled "Prime Pupil"), which opens WhatsApp's 24-hour window; unknown numbers get the apply link back. Approved templates for business-initiated messages are the production follow-up |
+| 11-20 | Webhooks answer immediately and process in the background; permanent send errors fail fast and aren't retried | A used-up quota plus in-request retries froze the whole site on 11-19 night |
 
 ## 18. Polish backlog
 
-**Morning of demo (11-20):** stop retrying permanent send errors (e.g. Vonage "Monthly Limit Hit") and never wait inside a request; place requested calls even if the heads-up text fails; WhatsApp quota counter in the console; new Vonage sandbox keys (rehearsal account + demo-only account); test a Twilio trial account for SMS; Pipeline auto-refresh; don't cache index.html; offers-with-one-click + touches-per-hire metric; reset data; one rehearsal run.
+**Morning of demo (11-20):** stop retrying permanent send errors (e.g. Vonage "Monthly Limit Hit") and never wait inside a request; place requested calls even if the heads-up text fails; WhatsApp quota counter in the console; new Vonage sandbox keys (rehearsal account + demo-only account); test a Twilio trial account for SMS; Pipeline auto-refresh; don't cache index.html; reset data; one rehearsal run. (Done 11-20 night: public career page, offers-with-one-click metric.)
 
 - WhatsApp sequence: user has additional issues to review (handle near the end).
 

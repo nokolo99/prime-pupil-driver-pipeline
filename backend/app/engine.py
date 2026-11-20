@@ -183,6 +183,8 @@ def _retry_failed_messages(s: Session) -> int:
             m.provider_id = messaging.send_text(m.channel.value, c.phone, m.body)
             m.delivery = "sent"
             done += 1
+        except messaging.PermanentSendError:
+            m.delivery = "rejected"
         except Exception:
             pass
     s.commit()

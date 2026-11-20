@@ -1,8 +1,8 @@
-"""Vonage Messages API webhooks (WhatsApp sandbox / SMS). Same handling as Twilio via process_incoming()."""
+"""Vonage Messages API webhooks (WhatsApp / SMS). Same handling as Twilio via process_incoming()."""
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import Response
 from sqlmodel import Session, select
 
@@ -10,7 +10,7 @@ from .. import messaging
 from ..conversation import log_event
 from ..db import get_session
 from ..models import Actor, Candidate, Channel, Message
-from .sms import process_incoming
+from .sms import process_incoming_later
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/vonage", tags=["vonage (webhooks)"])
@@ -25,7 +25,7 @@ async def _payload(request: Request) -> dict:
 
 
 @router.api_route("/inbound", methods=["GET", "POST"])
-async def inbound(request: Request, s: Session = Depends(get_session)):
+async def inbound(request: Request, bg: BackgroundTasks):
     if not messaging.vonage_valid_webhook(request.headers.get("Authorization", "")):
         raise HTTPException(401, "Invalid Vonage signature")
     m = await _payload(request)
@@ -41,7 +41,7 @@ async def inbound(request: Request, s: Session = Depends(get_session)):
         mtype = "image/png" if url.lower().split("?")[0].endswith(".png") else "image/jpeg"
         return messaging.vonage_download(url), mtype
 
-    process_incoming(s, phone, body, channel, photo if image else None)
+    bg.add_task(process_incoming_later, phone, body, channel, photo if image else None)  # answer Vonage right away
     return Response(status_code=200)
 
 

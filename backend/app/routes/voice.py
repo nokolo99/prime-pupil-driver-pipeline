@@ -12,7 +12,7 @@ import logging
 import secrets
 from xml.sax.saxutils import quoteattr
 
-from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
 from sqlmodel import Session, select
 from twilio.twiml.voice_response import VoiceResponse
@@ -185,17 +185,26 @@ def _text_if_cut_off(s: Session, c: Candidate) -> None:
     log_event(s, c, "call_cut_off_texted", Actor.system, questions_left=left)
 
 
+def _after_call(candidate_id: int, form: dict) -> None:
+    """Background (worker thread): log how the call ended, and text them if it ended mid-screening."""
+    try:
+        with Session(engine) as s:
+            c = s.get(Candidate, candidate_id)
+            if c:
+                log_event(s, c, "call_ended", Actor.system, call_sid=form.get("CallSid"),
+                          status=form.get("SessionStatus"), duration_s=form.get("SessionDuration"),
+                          error=form.get("ErrorMessage"))
+                _text_if_cut_off(s, c)
+                s.commit()
+    except Exception:
+        log.exception("after-call handling failed for candidate %s", candidate_id)
+
+
 @router.post("/relay-ended")
-async def relay_ended(request: Request, candidate_id: int, s: Session = Depends(get_session)):
-    """Twilio calls this when the AI conversation ends: log how it ended and how long it lasted."""
+async def relay_ended(request: Request, candidate_id: int, bg: BackgroundTasks):
+    """Twilio calls this when the AI conversation ends. Answer at once; the follow-up text goes out in the background."""
     form = await _verified_form(request)
-    c = s.get(Candidate, candidate_id)
-    if c:
-        log_event(s, c, "call_ended", Actor.system, call_sid=form.get("CallSid"),
-                  status=form.get("SessionStatus"), duration_s=form.get("SessionDuration"),
-                  error=form.get("ErrorMessage"))
-        _text_if_cut_off(s, c)
-        s.commit()
+    bg.add_task(_after_call, candidate_id, dict(form))
     vr = VoiceResponse()
     vr.hangup()
     return _xml(str(vr))

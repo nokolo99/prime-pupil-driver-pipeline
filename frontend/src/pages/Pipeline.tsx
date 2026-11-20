@@ -32,7 +32,10 @@ export default function Pipeline() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "days", dir: -1 });
   const [page, setPage] = useState(0);
 
-  useEffect(() => { api<Candidate[]>(`/candidates${extraQs ? `?${extraQs}` : ""}`).then(setCandidates); }, [extraQs]);
+  useEffect(() => {
+    const load = () => api<Candidate[]>(`/candidates${extraQs ? `?${extraQs}` : ""}`).then(setCandidates);
+    load(); const t = setInterval(load, 5000); return () => clearInterval(t);  // live: new applicants appear on their own
+  }, [extraQs]);
   useEffect(() => {
     api<Lookups>("/lookups").then(setLk);
     api<typeof flags>("/flags").then(setFlags);

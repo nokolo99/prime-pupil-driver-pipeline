@@ -9,7 +9,10 @@ export default function Apply({ unlocked }: { unlocked: boolean }) {
   const nav = useNavigate();
   const [lk, setLk] = useState<Lookups>({ depots: [], recruiters: [] });
   const [mode, setMode] = useState("poll");
-  const [f, setF] = useState({ first_name: "", last_name: "", phone: "", depot_id: 1, language: "en", channel: "whatsapp", first_contact: "text", sms_consent: true });
+  // Arriving from the WhatsApp link we texted them: their number and channel are already known.
+  const qp = new URLSearchParams(window.location.search);
+  const [f, setF] = useState({ first_name: "", last_name: "", phone: qp.get("phone") ?? "", depot_id: 1, language: "en",
+    channel: qp.get("channel") === "sms" ? "sms" : "whatsapp", first_contact: "text", sms_consent: true });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
