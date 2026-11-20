@@ -334,3 +334,23 @@ def says_permit(r: CandidateReq, s: Session = Depends(get_session)):
     permit_self_reported(s, c)
     s.commit()
     return {"ok": True}
+
+
+class ChannelReq(BaseModel):
+    phone: str
+    channel: str  # sms | whatsapp
+
+
+@router.post("/candidate/channel")
+def set_channel(r: ChannelReq, s: Session = Depends(get_session)):
+    """Switch how the candidate is texted (SMS or WhatsApp). Future messages go on the new channel."""
+    from fastapi import HTTPException
+    from ..conversation import log_event
+    from ..models import Actor, Channel
+    if r.channel not in ("sms", "whatsapp"):
+        raise HTTPException(422, "channel must be sms or whatsapp")
+    c = _find(s, r.phone)
+    c.preferred_channel = Channel(r.channel)
+    log_event(s, c, "channel_changed", Actor.system, to=r.channel, via="demo")
+    s.commit()
+    return {"ok": True, "channel": r.channel}

@@ -124,6 +124,12 @@ export default function Demo() {
               <div className="font-semibold">{cand.first_name} {cand.last_name} <span className="ml-1 text-sm font-normal text-stone-500">{cand.phone} · {cand.preferred_language.toUpperCase()} · {cand.preferred_channel === "whatsapp" ? "WhatsApp" : "SMS"}</span></div>
               <div className="mt-0.5 flex items-center gap-2 text-sm"><span className="font-medium">{label(cand.stage)}</span><StatusPill status={cand.status} /></div>
             </div>
+            <div className="flex overflow-hidden rounded-lg border text-sm" title="How this candidate is texted">
+              {(["whatsapp", "sms"] as const).map((ch) => (
+                <button key={ch} onClick={() => act("/demo/candidate/channel", { phone, channel: ch }, `Texts for ${cand.first_name} now go by ${ch === "whatsapp" ? "WhatsApp" : "SMS"}.`)}
+                  className={`px-3 py-1.5 ${cand.preferred_channel === ch ? "bg-emerald-800 text-white" : "bg-white hover:bg-stone-50"}`}>{ch === "whatsapp" ? "WhatsApp" : "SMS"}</button>
+              ))}
+            </div>
             <Link to={`/candidates/${cand.id}`} className="text-sm text-emerald-800 underline">Open recruiter view →</Link>
             <button className={btn} onClick={() => { setPicking(true); setQ(""); }}>Change candidate</button>
           </div>
