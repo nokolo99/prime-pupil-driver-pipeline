@@ -218,6 +218,7 @@ def tick(s: Session) -> int:
             continue
 
         n = step.nudge_count + 1
+        text_n = sum(1 for _, k in schedule[:n] if k == "sms") or 1  # rotate versions by texts only (calls don't count)
         if kind == "call" and not settings.ai_calls_enabled():
             kind = "sms"  # AI calls turned off in Settings: send a text instead
         if kind == "call" and telephony.voice_ready():
@@ -231,13 +232,13 @@ def tick(s: Session) -> int:
             except Exception as e:
                 log.exception("call failed")
                 log_event(s, c, "ai_call_failed", Actor.system, error=str(e)[:200])
-            body, en = _reminder(s, c, step, n)  # couldn't call: send the stage's reminder (with link)
+            body, en = _reminder(s, c, step, text_n + 1)  # couldn't call: send the next reminder version (with link)
         elif kind == "call":
             # Voice not configured: log the intended call and send the stage's reminder instead.
             log_event(s, c, "ai_call_placeholder", Actor.system, attempt=n, day=due_day)
-            body, en = _reminder(s, c, step, n)
+            body, en = _reminder(s, c, step, text_n + 1)
         else:
-            body, en = _reminder(s, c, step, n)
+            body, en = _reminder(s, c, step, text_n)
         send(s, c, body, en, Sender.system)
         log_event(s, c, "nudge_sent", Actor.system, attempt=n, day=due_day, kind=kind, stage=step.stage.value)
         step.nudge_count, step.last_nudged_at = n, t
