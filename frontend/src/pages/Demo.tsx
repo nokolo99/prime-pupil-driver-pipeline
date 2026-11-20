@@ -93,13 +93,20 @@ export default function Demo() {
   const [busy, setBusy] = useState(false);
   const thread = useRef<HTMLDivElement>(null);
   // Scroll only the phone's thread (scrollIntoView would scroll the whole page).
-  useEffect(() => { const el = thread.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs.length, busy]);
+  useEffect(() => { const el = thread.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs.length, busy, pending]);
+  // The candidate's message shows right away (like a real phone); the "…" bubble covers the AI thinking.
+  const [pending, setPending] = useState<string | null>(null);
   async function send() {
     if (!text.trim() || busy || !phone) return;
-    const body = text; setText(""); setBusy(true);
-    try { await api("/sim/inbound", { method: "POST", body: JSON.stringify({ phone, body }) }); }
-    catch (e) { setNote(`⚠ ${(e as Error).message}`); } finally { setBusy(false); }
+    const body = text; setText(""); setPending(body); setBusy(true);
+    try {
+      await api("/sim/inbound", { method: "POST", body: JSON.stringify({ phone, body }) });
+      setMsgs(await api<Message[]>(`/sim/messages?phone=${encodeURIComponent(phone)}`));
+    }
+    catch (e) { setNote(`⚠ ${(e as Error).message}`); } finally { setBusy(false); setPending(null); }
   }
+  const lastIn = [...msgs].reverse().find((m) => m.direction === "in");
+  const showPending = pending !== null && lastIn?.body !== pending;
   async function uploadPhoto(file: File) {
     const fd = new FormData(); fd.append("phone", phone); fd.append("photo", file);
     const r = await fetch("/api/sim/inbound-photo", { method: "POST", body: fd, headers: demoHeaders() });
@@ -268,6 +275,7 @@ export default function Demo() {
                     {m.channel === "voice" ? "📞 " : ""}<Linkify text={m.body} />
                   </div>
                 ))}
+                {showPending && <div className="ml-auto max-w-[80%] rounded-2xl bg-sky-500 px-3 py-2 text-sm text-white">{pending}</div>}
                 {busy && <div className="w-12 rounded-2xl bg-stone-200 px-3 py-2 text-sm text-stone-500">…</div>}
               </div>
               <div className="flex items-center gap-1 border-t p-2">
@@ -276,7 +284,7 @@ export default function Demo() {
                 <button className="rounded-full bg-sky-500 px-3 py-1 text-sm text-white" onClick={send}>↑</button>
               </div>
             </div>
-            <p className="mt-2 text-center text-xs text-stone-400">Messages also go to the real phone ({cand?.preferred_channel === "whatsapp" ? "WhatsApp" : "SMS"}). Replies typed here act as the candidate.</p>
+            <p className="mt-2 text-center text-xs text-stone-400">{cand?.live_messages ? `Live: messages also go to the real phone (${cand.preferred_channel === "whatsapp" ? "WhatsApp" : "SMS"}).` : "Simulated: messages only show here."} Replies typed here act as the candidate.</p>
           </div>
         </div>
       )}

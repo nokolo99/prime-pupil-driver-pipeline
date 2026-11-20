@@ -185,6 +185,10 @@ def force_stage(r: StageReq, s: Session = Depends(get_session)):
     except ValueError:
         raise HTTPException(422, f"Unknown stage {r.stage}")
     t = now()
+    # Start the phone thread fresh, so the demo shows only the conversation from this stage on.
+    from sqlmodel import delete
+    from ..models import Message
+    s.exec(delete(Message).where(Message.candidate_id == c.id))
     # Close any open steps first, so jumping around never leaves old tracks (e.g. a second permit track) running.
     for st in s.exec(select(Step).where(Step.candidate_id == c.id, Step.completed_at == None)).all():  # noqa: E711
         st.status, st.completed_at = StepStatus.passed, t
