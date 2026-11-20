@@ -9,10 +9,10 @@ export default function Apply({ unlocked }: { unlocked: boolean }) {
   const nav = useNavigate();
   const [lk, setLk] = useState<Lookups>({ depots: [], recruiters: [] });
   const [mode, setMode] = useState("poll");
-  // Arriving from the WhatsApp link we texted them: their number and channel are already known.
+  // Messages go to WhatsApp only (SMS is built but not offered while carrier registration is pending).
   const qp = new URLSearchParams(window.location.search);
   const [f, setF] = useState({ first_name: "", last_name: "", phone: qp.get("phone") ?? "", depot_id: 1, language: "en",
-    channel: qp.get("channel") === "sms" ? "sms" : "whatsapp", first_contact: "text", sms_consent: true });
+    channel: "whatsapp", first_contact: "text", sms_consent: true });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -46,7 +46,7 @@ export default function Apply({ unlocked }: { unlocked: boolean }) {
       <h2 className="text-xl font-semibold">Thanks for applying, {f.first_name}!</h2>
       <p className="mt-2 text-sm text-stone-600">{f.first_contact === "call"
         ? "We'll call you in about a minute to ask a few quick questions. Keep your phone handy."
-        : `We'll text you in a moment on ${f.channel === "whatsapp" ? "WhatsApp" : "SMS"} to ask a few quick questions.`}</p>
+        : "We'll message you on WhatsApp in a moment to ask a few quick questions."}</p>
     </div>
   );
 
@@ -66,20 +66,14 @@ export default function Apply({ unlocked }: { unlocked: boolean }) {
           <select className={input} value={f.depot_id} onChange={(e) => setF({ ...f, depot_id: Number(e.target.value) })}>
             {lk.depots.map((d) => <option key={d.id} value={d.id}>{d.name} ({d.city})</option>)}
           </select></label>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs text-stone-600">Preferred language
-            <select className={input} value={f.language} onChange={(e) => setF({ ...f, language: e.target.value })}>
-              <option value="en">English</option><option value="es">Español</option><option value="other">Other</option>
-            </select></label>
-          <label className="text-xs text-stone-600">Text me on
-            <select className={input} value={f.channel} onChange={(e) => setF({ ...f, channel: e.target.value })}>
-              <option value="whatsapp">WhatsApp</option><option value="sms">SMS (text message)</option>
-            </select></label>
-        </div>
+        <label className="block text-xs text-stone-600">Preferred language
+          <select className={input} value={f.language} onChange={(e) => setF({ ...f, language: e.target.value })}>
+            <option value="en">English</option><option value="es">Español</option><option value="other">Other</option>
+          </select></label>
         <fieldset className="text-xs text-stone-600">
           <legend className="mb-1">How should we reach you first?</legend>
           <div className="grid grid-cols-2 gap-3">
-            {[["text", "Text me"], ["call", "Give me a call"]].map(([v, l]) => (
+            {[["text", "WhatsApp message"], ["call", "Phone call"]].map(([v, l]) => (
               <label key={v} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${f.first_contact === v ? "border-emerald-700 bg-emerald-50 text-emerald-900" : "border-stone-300 text-stone-700"}`}>
                 <input type="radio" name="first_contact" value={v} checked={f.first_contact === v} onChange={() => setF({ ...f, first_contact: v })} />{l}
               </label>))}
@@ -88,7 +82,7 @@ export default function Apply({ unlocked }: { unlocked: boolean }) {
         </fieldset>
         <label className="flex items-start gap-2 text-xs text-stone-600">
           <input type="checkbox" className="mt-0.5" checked={f.sms_consent} onChange={(e) => setF({ ...f, sms_consent: e.target.checked })} />
-          I agree to receive texts and calls about my application. Msg &amp; data rates may apply. Reply STOP to opt out.
+          I agree to receive WhatsApp messages and calls about my application. Msg &amp; data rates may apply. Reply STOP to opt out.
         </label>
         <button disabled={busy} className="w-full rounded-lg bg-emerald-800 py-2.5 text-sm font-medium text-white hover:bg-emerald-900 disabled:opacity-50">{busy ? "Submitting…" : "Apply"}</button>
         {err && <p className="text-sm text-rose-700">⚠ {err}</p>}
