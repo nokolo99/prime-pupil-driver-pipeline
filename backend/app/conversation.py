@@ -86,10 +86,16 @@ def send(s: Session, candidate: Candidate, body: str, body_en: Optional[str], se
 
 def _deliver_sms(s: Session, candidate: Candidate, msg: Message) -> None:
     """Hand an outbound text to the configured provider (Twilio or Vonage). Failures are logged, never raised."""
-    from . import messaging
+    from . import messaging, telephony
+    if telephony.is_fictional(candidate.phone) or not messaging.enabled():
+        msg.delivery = "skipped"
+        return
+    msg.attempts += 1
     try:
         msg.provider_id = messaging.send_text(msg.channel.value, candidate.phone, msg.body)
+        msg.delivery = "sent"
     except Exception as e:
+        msg.delivery = "failed"  # the engine retries failed sends on its next ticks
         log.warning("SMS to %s failed: %s", candidate.phone, e)
         s.add(Event(candidate_id=candidate.id, type="sms_failed", actor=Actor.system,
                     details={"error": str(getattr(e, "msg", e))[:200]}))

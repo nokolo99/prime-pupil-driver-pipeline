@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, type Lookups } from "../api";
+import { api, demoHeaders, type Lookups } from "../api";
 
 // Stand-in for Prime Pupil's career page. Submitting creates the application in Workday (poll mode:
 // our connector picks it up with Get_Candidates) or posts it straight in (direct mode).
@@ -21,7 +21,7 @@ export default function Apply() {
     try {
       let phone = f.phone;
       if (mode === "poll") {
-        const r = await fetch("/mock-workday/career-site/apply", { method: "POST", headers: { "Content-Type": "application/json" },
+        const r = await fetch("/mock-workday/career-site/apply", { method: "POST", headers: { "Content-Type": "application/json", ...demoHeaders() },
           body: JSON.stringify({ first_name: f.first_name, last_name: f.last_name, phone: f.phone, depot_id: f.depot_id,
             preferred_language: f.language, sms_consent: f.sms_consent, contact_channel: f.channel }) });
         if (!r.ok) throw new Error((await r.json()).detail ?? "Couldn't submit");

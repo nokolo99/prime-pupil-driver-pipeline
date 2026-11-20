@@ -1,6 +1,11 @@
+// Demo password (remembered in this browser). Sent with every request; only demo endpoints check it.
+export const demoKey = () => { try { return localStorage.getItem("pp_demo_key") ?? ""; } catch { return ""; } };
+export const setDemoKey = (k: string) => { try { if (k) localStorage.setItem("pp_demo_key", k); else localStorage.removeItem("pp_demo_key"); } catch { /* ignore */ } };
+export const demoHeaders = (): Record<string, string> => (demoKey() ? { "X-Demo-Key": demoKey() } : {});
+
 // Thin wrapper around the backend JSON API.
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api${path}`, { headers: { "Content-Type": "application/json" }, ...init });
+  const res = await fetch(`/api${path}`, { ...init, headers: { "Content-Type": "application/json", ...demoHeaders(), ...(init?.headers ?? {}) } });
   if (!res.ok) {
     const text = await res.text();
     let msg = text;

@@ -8,12 +8,23 @@ import TrainingSheet from "./pages/TrainingSheet";
 import Settings from "./pages/Settings";
 import Apply from "./pages/Apply";
 import Workday from "./pages/Workday";
+import DemoGate from "./DemoGate";
+import { useEffect, useState } from "react";
+import { demoHeaders, setDemoKey } from "./api";
 import { ClockBanner } from "./components";
 
 const link = ({ isActive }: { isActive: boolean }) =>
   `px-3 py-1.5 rounded-md text-sm ${isActive ? "bg-emerald-800 text-white" : "text-stone-700 hover:bg-stone-200"}`;
 
 export default function App() {
+  // The DEMO pill only shows once the demo password has been entered in this browser.
+  const [unlocked, setUnlocked] = useState(false);
+  useEffect(() => {
+    const check = () => fetch("/api/demo/check", { headers: demoHeaders() }).then((r) => setUnlocked(r.ok)).catch(() => setUnlocked(false));
+    check();
+    window.addEventListener("pp-demo-unlocked", check);
+    return () => window.removeEventListener("pp-demo-unlocked", check);
+  }, []);
   return (
     <div className="min-h-screen">
       <ClockBanner />
@@ -29,12 +40,16 @@ export default function App() {
             <NavLink to="/insights" className={link}>Insights</NavLink>
             <NavLink to="/settings" className={link}>Settings</NavLink>
           </nav>
-          <nav className="ml-auto flex items-center gap-1 rounded-lg border border-dashed border-amber-300 bg-amber-50 px-1.5 py-1 text-xs">
-            <span className="px-1 font-semibold uppercase tracking-wide text-amber-800">Demo</span>
-            <NavLink to="/apply" className={({ isActive }) => `rounded px-2 py-0.5 ${isActive ? "bg-amber-200 text-amber-950" : "text-amber-900 hover:bg-amber-100"}`}>New applicant</NavLink>
-            <NavLink to="/demo" className={({ isActive }) => `rounded px-2 py-0.5 ${isActive ? "bg-amber-200 text-amber-950" : "text-amber-900 hover:bg-amber-100"}`}>Console</NavLink>
-            <NavLink to="/workday" className={({ isActive }) => `rounded px-2 py-0.5 ${isActive ? "bg-amber-200 text-amber-950" : "text-amber-900 hover:bg-amber-100"}`}>Workday</NavLink>
-          </nav>
+          {unlocked ? (
+            <nav className="ml-auto flex items-center gap-1 rounded-lg border border-dashed border-amber-300 bg-amber-50 px-1.5 py-1 text-xs">
+              <span className="px-1 font-semibold uppercase tracking-wide text-amber-800">Demo</span>
+              <NavLink to="/apply" className={({ isActive }) => `rounded px-2 py-0.5 ${isActive ? "bg-amber-200 text-amber-950" : "text-amber-900 hover:bg-amber-100"}`}>New applicant</NavLink>
+              <NavLink to="/demo" className={({ isActive }) => `rounded px-2 py-0.5 ${isActive ? "bg-amber-200 text-amber-950" : "text-amber-900 hover:bg-amber-100"}`}>Console</NavLink>
+              <button title="Lock demo controls" className="px-1 text-amber-700 hover:text-amber-950" onClick={() => { setDemoKey(""); setUnlocked(false); window.location.href = "/"; }}>🔒</button>
+            </nav>
+          ) : (
+            <NavLink to="/demo" title="Demo controls" className="ml-auto px-2 text-stone-300 hover:text-stone-500">🔒</NavLink>
+          )}
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-6">
@@ -42,12 +57,12 @@ export default function App() {
           <Route path="/" element={<Today />} />
           <Route path="/pipeline" element={<Pipeline />} />
           <Route path="/candidates/:id" element={<CandidateDetail />} />
-          <Route path="/demo" element={<Demo />} />
+          <Route path="/demo" element={<DemoGate><Demo /></DemoGate>} />
           <Route path="/insights" element={<Insights />} />
-          <Route path="/training-roster" element={<TrainingSheet />} />
+          <Route path="/training-roster" element={<DemoGate><TrainingSheet /></DemoGate>} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/apply" element={<Apply />} />
-          <Route path="/workday" element={<Workday />} />
+          <Route path="/apply" element={<DemoGate><Apply /></DemoGate>} />
+          <Route path="/workday" element={<DemoGate><Workday /></DemoGate>} />
         </Routes>
       </main>
     </div>

@@ -223,6 +223,8 @@ class Message(SQLModel, table=True):
     language: Optional[str] = None
     translation_en: Optional[str] = None  # shown to recruiters under non-English messages
     provider_id: Optional[str] = None     # Twilio message/call ID
+    delivery: Optional[str] = None        # sent / failed (retried by the engine) / skipped
+    attempts: int = 0
     created_at: datetime = Field(default_factory=now)
 
 

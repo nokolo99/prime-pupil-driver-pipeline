@@ -9,7 +9,9 @@ from ..db import get_session
 from ..engine import tick
 from ..models import Setting, WorkdayOutbox
 
-router = APIRouter(prefix="/api/demo", tags=["demo controls"])
+from ..demo_auth import require_demo  # noqa: E402
+
+router = APIRouter(prefix="/api/demo", tags=["demo controls"], dependencies=[Depends(require_demo)])
 
 
 def save_offset(s: Session) -> None:
@@ -17,6 +19,12 @@ def save_offset(s: Session) -> None:
     row.value = str(clock.offset_days())
     s.add(row)
     s.commit()
+
+
+@router.get("/check")
+def check():
+    """Used by the UI to verify the demo password."""
+    return {"ok": True}
 
 
 @router.get("/clock")

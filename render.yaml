@@ -43,3 +43,5 @@ services:
         sync: false
       - key: VONAGE_API_SECRET
         sync: false
+      - key: DEMO_PASSWORD         # protects demo pages/controls (New applicant, Console, simulator)
+        sync: false

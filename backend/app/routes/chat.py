@@ -10,7 +10,10 @@ from ..db import get_session
 from ..models import Candidate, Channel, Message
 from ..phones import normalize_us
 
+from ..demo_auth import require_demo  # noqa: E402
+
 router = APIRouter(prefix="/api/sim", tags=["simulator"])
+_demo = [Depends(require_demo)]
 
 
 def _by_phone(s: Session, phone: str) -> Candidate | None:
@@ -21,7 +24,7 @@ def _by_phone(s: Session, phone: str) -> Candidate | None:
     return s.exec(select(Candidate).where(Candidate.phone == phone).order_by(Candidate.created_at.desc())).first()
 
 
-@router.get("/messages")
+@router.get("/messages", dependencies=_demo)
 def messages(phone: str, session: Session = Depends(get_session)):
     c = _by_phone(session, phone)
     if not c:
@@ -34,7 +37,7 @@ class Inbound(BaseModel):
     body: str
 
 
-@router.post("/inbound")
+@router.post("/inbound", dependencies=_demo)
 def inbound(m: Inbound, session: Session = Depends(get_session)):
     c = _by_phone(session, m.phone)
     if not c:
@@ -44,7 +47,7 @@ def inbound(m: Inbound, session: Session = Depends(get_session)):
 
 
 
-@router.post("/inbound-photo")
+@router.post("/inbound-photo", dependencies=_demo)
 async def inbound_photo(phone: str = Form(...), photo: UploadFile = File(...), session: Session = Depends(get_session)):
     """Simulator stand-in for a picture message (MMS)."""
     from ..stages import permit_photo_received

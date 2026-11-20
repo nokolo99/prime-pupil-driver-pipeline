@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../api";
+import { api, demoHeaders } from "../api";
 
 type App = { id: number; job_application_id: string; candidate_id: string; first_name: string; last_name: string; job_requisition_id: string; current_step: string; disposition: string | null };
 type Out = { id: number; workday_id: string | null; action: string; payload: Record<string, unknown>; status: string; created_at: string };
@@ -11,7 +11,7 @@ export default function Workday() {
   const [mode, setMode] = useState("");
   useEffect(() => {
     const load = () => {
-      fetch("/mock-workday/applications").then((r) => r.json()).then(setApps).catch(() => {});
+      fetch("/mock-workday/applications", { headers: demoHeaders() }).then((r) => r.json()).then(setApps).catch(() => {});
       api<Out[]>("/demo/workday-outbox").then(setOut);
     };
     load(); api<{ workday_intake?: string }>("/demo/voice-status").then((v) => setMode(v.workday_intake ?? ""));

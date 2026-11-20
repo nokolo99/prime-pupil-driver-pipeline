@@ -80,9 +80,15 @@ def _enter_background_check(s: Session, c: Candidate, step: Step) -> None:
 
 
 def bg_form_completed(s: Session, order_id: str) -> Optional[Candidate]:
-    bc = s.exec(select(BackgroundCheck).where(BackgroundCheck.vendor_order_id == order_id)).first()
-    if not bc or bc.form_completed_at:
+    # Claim the completion atomically, so a double submit (or duplicate vendor event) only counts once.
+    from sqlalchemy import update
+    claimed = s.exec(update(BackgroundCheck).where(BackgroundCheck.vendor_order_id == order_id,
+                                                   BackgroundCheck.form_completed_at == None)  # noqa: E711
+                     .values(form_completed_at=now())).rowcount
+    s.commit()
+    if not claimed:
         return None
+    bc = s.exec(select(BackgroundCheck).where(BackgroundCheck.vendor_order_id == order_id)).first()
     step = s.get(Step, bc.step_id)
     c = s.get(Candidate, step.candidate_id)
     bc.form_completed_at, bc.report_status = now(), "in_progress"

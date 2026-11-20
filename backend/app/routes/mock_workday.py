@@ -35,7 +35,10 @@ class Apply(BaseModel):
     contact_channel: str = "sms"
 
 
-@router.post("/career-site/apply")
+from ..demo_auth import require_demo  # noqa: E402
+
+
+@router.post("/career-site/apply", dependencies=[Depends(require_demo)])
 def career_site_apply(a: Apply, s: Session = Depends(get_session)):
     """What happens when someone submits Prime Pupil's career-page form: a candidate + job application in Workday."""
     from ..phones import normalize_us
@@ -64,7 +67,7 @@ def get_candidates(r: GetCandidatesReq, s: Session = Depends(get_session)):
     return {"candidates": [x.model_dump() for x in rows], "as_of": now().isoformat()}
 
 
-@router.get("/applications")
+@router.get("/applications", dependencies=[Depends(require_demo)])
 def list_applications(s: Session = Depends(get_session)):
     """For the demo: see what's in fake Workday."""
     return s.exec(select(MockWorkdayApplication).order_by(MockWorkdayApplication.id.desc()).limit(50)).all()

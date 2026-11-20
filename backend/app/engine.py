@@ -165,10 +165,39 @@ def _watch_training_sheet(s: Session) -> int:
     return actions
 
 
+def _retry_failed_messages(s: Session) -> int:
+    """Re-send texts that failed (e.g. provider rate limit). Up to 6 tries within an hour, in order."""
+    from datetime import timezone as _tz
+    from . import messaging
+    from .models import Message
+    real_now = datetime.now(_tz.utc)
+    rows = s.exec(select(Message).where(Message.delivery == "failed", Message.attempts < 6).order_by(Message.id)).all()
+    done = 0
+    for m in rows:
+        if (real_now - _aware(m.created_at)).total_seconds() > 3600 + abs((now() - real_now).total_seconds()):
+            m.delivery = "gave_up"
+            continue
+        c = s.get(Candidate, m.candidate_id)
+        m.attempts += 1
+        try:
+            m.provider_id = messaging.send_text(m.channel.value, c.phone, m.body)
+            m.delivery = "sent"
+            done += 1
+        except Exception:
+            pass
+    s.commit()
+    return done
+
+
 def tick(s: Session) -> int:
     """Returns how many actions were taken."""
     t = now()
     actions = 0
+    try:
+        _retry_failed_messages(s)
+    except Exception:
+        log.exception("engine: message retry failed")
+        s.rollback()
     for part in (_appointments, _overdue, _training_reminders):  # one bad record must never stop the whole tick
         try:
             actions += part(s, t)

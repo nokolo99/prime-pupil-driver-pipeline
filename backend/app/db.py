@@ -27,6 +27,30 @@ if DATABASE_URL.startswith("sqlite"):
 def init_db() -> None:
     from . import models  # noqa: F401  (registers tables)
     SQLModel.metadata.create_all(engine)
+    _add_missing_columns()
+
+
+def _add_missing_columns() -> None:
+    """Tiny SQLite migration: add columns that exist in the models but not yet in the database, so deploys
+    never require wiping prod data. (Prod on Postgres would use proper migrations, e.g. Alembic.)"""
+    if not DATABASE_URL.startswith("sqlite"):
+        return
+    from sqlalchemy import inspect, text
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table in SQLModel.metadata.sorted_tables:
+            if not insp.has_table(table.name):
+                continue
+            have = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name in have:
+                    continue
+                ddl = col.type.compile(dialect=engine.dialect)
+                default = col.default.arg if col.default is not None and not callable(col.default.arg) else None
+                if hasattr(default, "value"):
+                    default = default.value
+                dflt = "" if default is None else f" DEFAULT {default!r}" if isinstance(default, str) else f" DEFAULT {int(default) if isinstance(default, bool) else default}"
+                conn.execute(text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {ddl}{dflt}'))
 
 
 def get_session():

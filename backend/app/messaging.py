@@ -18,9 +18,14 @@ def provider_for(channel: str) -> str:
     return os.getenv(f"{channel.upper()}_PROVIDER", "twilio").lower()
 
 
+def enabled() -> bool:
+    """MESSAGING_ENABLED=false (e.g. the laptop while prod is live): record messages, never send real ones."""
+    return os.getenv("MESSAGING_ENABLED", "true").lower() == "true"
+
+
 def send_text(channel: str, to: str, body: str) -> Optional[str]:
     """Deliver an outbound text on 'sms' or 'whatsapp'. Returns the provider's message ID."""
-    if telephony.is_fictional(to):
+    if telephony.is_fictional(to) or not enabled():
         return None
     if provider_for(channel) == "vonage":
         return vonage_send(channel, to, body)

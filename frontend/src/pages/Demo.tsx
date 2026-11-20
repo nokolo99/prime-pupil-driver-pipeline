@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, label, STAGES, type Candidate, type Message } from "../api";
+import { api, demoHeaders, label, STAGES, type Candidate, type Message } from "../api";
 import { Linkify, StatusPill } from "../components";
 
 // Demo console: everything here acts on ONE selected candidate (picked at the top), so the phone and the
@@ -102,7 +102,7 @@ export default function Demo() {
   }
   async function uploadPhoto(file: File) {
     const fd = new FormData(); fd.append("phone", phone); fd.append("photo", file);
-    const r = await fetch("/api/sim/inbound-photo", { method: "POST", body: fd });
+    const r = await fetch("/api/sim/inbound-photo", { method: "POST", body: fd, headers: demoHeaders() });
     setNote(r.ok ? "Photo sent from the candidate's phone." : `⚠ ${await r.text()}`);
   }
 
