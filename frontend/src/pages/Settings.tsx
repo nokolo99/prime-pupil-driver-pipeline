@@ -21,26 +21,6 @@ function build(c: Cadence, giveUp: number) {
   return { texts, calls };
 }
 
-function Track({ c, giveUp }: { c: Cadence; giveUp: number }) {
-  const { texts, calls } = build(c, giveUp);
-  const cell = (on: boolean, color: string, d: number, kind: string) => (
-    <span key={d} title={on ? `Day ${d}: ${kind}` : `Day ${d}`} className={`inline-block h-2.5 w-[1.05%] ${on ? color : "bg-transparent"} rounded-sm`} />
-  );
-  const days = Array.from({ length: giveUp }, (_, i) => i + 1);
-  return (
-    <div className="mt-2 rounded bg-stone-50 p-2 text-[10px] text-stone-500">
-      <div className="flex items-center gap-1"><span className="w-12 shrink-0">💬 texts</span><div className="flex flex-1 gap-[1px]">{days.map((d) => cell(texts.has(d), "bg-[#2a78d6]", d, "text"))}</div></div>
-      <div className="mt-1 flex items-center gap-1"><span className="w-12 shrink-0">📞 calls</span><div className="flex flex-1 gap-[1px]">{days.map((d) => cell(calls.has(d), "bg-[#eb6834]", d, "AI call"))}</div></div>
-      <div className="mt-1 flex justify-between pl-12"><span>day 1</span><span>day {Math.round(giveUp / 2)}</span><span>day {giveUp}: stop, hand to recruiter</span></div>
-      <div className="mt-1 pl-12 text-stone-600">{texts.size} texts + {calls.size} AI calls. If a text and a call fall on the same day, the call goes out and a text follows only if it isn't answered.</div>
-    </div>
-  );
-}
-
-const SAMPLE: Record<string, string> = { first_name: "Maria", link: "https://example.com/abc", clinic: "Troy Occupational Health",
-  when: "Tue Nov 24, 9:00 AM", time: "10:00 AM", clinics: "• Troy Occupational Health, 120 Main St\n• Troy Urgent Care, 45 Route 9" };
-const fill = (t: string) => t.replace(/\{(\w+)\}/g, (_, k) => SAMPLE[k] ?? `{${k}}`);
-
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const r = await fetch(`/api/settings${path}`, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
   const j = await r.json();
@@ -115,7 +95,7 @@ export default function Settings() {
                   <label className="ml-2 mr-2 flex items-center gap-1 text-xs"><input type="checkbox" checked={c.calls.enabled} onChange={(e) => set((d) => { d.follow_up[st].calls.enabled = e.target.checked; d.follow_up[st].preset = "custom"; })} /> on</label>
                   <span className={c.calls.enabled ? "" : "opacity-40"}>first on day{n(c.calls.first, (d, x) => { d.follow_up[st].calls.first = x; })}, then every{n(c.calls.every, (d, x) => { d.follow_up[st].calls.every = x; })}days</span>
                 </div>
-                <Track c={c} giveUp={draft.give_up_after_days} />
+                <p className="text-xs text-stone-500">{texts.size} texts + {calls.size} AI calls before day {draft.give_up_after_days}. If a text and a call fall on the same day, the call goes out and a text follows only if it isn't answered.</p>
                 <button className="text-xs text-stone-500 underline" onClick={() => set((d) => { for (const o of p.editable_stages) d.follow_up[o] = structuredClone(d.follow_up[st]); })}>Copy this schedule to all stages</button>
               </div>}
             </div>
