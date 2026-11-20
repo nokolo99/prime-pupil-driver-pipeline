@@ -379,3 +379,9 @@ def reminder_key(stage: str, attempt: int) -> str:
     """1st reminder uses version 1; later ones cycle 2 -> 3 -> 4."""
     keys = REMINDER_SETS[stage]
     return keys[0] if attempt <= 1 else keys[1 + (attempt - 2) % (len(keys) - 1)]
+
+
+# ---------- Reminder channel policy (product decision, not configurable) ----------
+# Reminders relay information people need to keep (links, clinics, what to bring), so they go by TEXT.
+# The only follow-up calls are in screening, where a conversation collects answers. Candidates can also call in anytime.
+SCREENING_REMINDER_CALLS = {"first": 5, "every": 14}

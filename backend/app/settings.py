@@ -138,10 +138,10 @@ def overrides() -> dict:
 # ---------- Getters used by the rest of the system ----------
 
 def follow_up_schedule(stage: str) -> list[tuple[int, str]]:
-    cadence = current()["follow_up"].get(stage)
-    if not cadence:
-        return list(config.DEFAULT_FOLLOW_UP)
-    return build_schedule(cadence, give_up_after_days())
+    """Texts come from Settings. AI calls are hardcoded: screening only (see config.SCREENING_REMINDER_CALLS)."""
+    cadence = current()["follow_up"].get(stage) or {**PRESETS["standard"]}
+    calls = {"enabled": stage == "screening", **config.SCREENING_REMINDER_CALLS}
+    return build_schedule({"texts": cadence["texts"], "calls": calls}, give_up_after_days())
 
 
 def give_up_after_days() -> int:
@@ -154,7 +154,7 @@ def quiet_hours() -> tuple[int, int]:
 
 
 def ai_calls_enabled() -> bool:
-    return bool(current()["ai_calls_enabled"])
+    return True  # calls are governed by the hardcoded policy in follow_up_schedule()
 
 
 def template_text(key: str, lang: str) -> str | None:
@@ -223,8 +223,8 @@ def validate(proposed: dict) -> list[str]:
     for stage, cad in (proposed.get("follow_up") or {}).items():
         name = stage.replace("_", " ")
         try:
-            t, c = cad["texts"], cad["calls"]
-            nums = [int(t["first"]), int(t["every_early"]), int(t["early_until"]), int(t["every_after"]), int(c["first"]), int(c["every"])]
+            t = cad["texts"]
+            nums = [int(t["first"]), int(t["every_early"]), int(t["early_until"]), int(t["every_after"])]
         except (KeyError, TypeError, ValueError):
             errs.append(f"Follow-ups for {name}: fill in every number")
             continue

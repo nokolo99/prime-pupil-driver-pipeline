@@ -18,7 +18,7 @@ const VERSION_TONE = ["Friendly", "Helpful", "Encouraging", "Door's open"];
 function build(c: Cadence, giveUp: number) {
   const texts = new Set<number>(), calls = new Set<number>();
   for (let d = c.texts.first; d < giveUp && d > 0;) { texts.add(d); d += d < c.texts.early_until ? Math.max(1, c.texts.every_early) : Math.max(1, c.texts.every_after); }
-  if (c.calls.enabled) for (let d = c.calls.first; d < giveUp && d > 0; d += Math.max(1, c.calls.every)) calls.add(d);
+  // Reminder calls aren't configurable (texts only; screening calls are fixed in code).
   for (const d of calls) texts.delete(d);
   return { texts, calls };
 }
@@ -68,16 +68,15 @@ export default function Settings() {
     <div className="space-y-5 pb-24">
       <div><h2 className="text-lg font-semibold">Settings</h2><p className="text-xs text-stone-500">Change how the system follows up and what it says, without engineers. Defaults are kept, so anything can be reset.</p></div>
 
-      <Section title="A. Follow-ups" sub="When candidates get a reminder text or an AI call, per stage. Days count from the candidate's last activity; the schedule restarts whenever they reply.">
+      <Section title="A. Follow-ups" sub="When candidates get a reminder text, per stage. Days count from the candidate's last activity; the schedule restarts whenever they reply. Reminders go by text because they relay information people need to keep (links, clinics, what to bring); AI calls are used for screening.">
         <div className="mb-3 flex flex-wrap items-center gap-4 text-sm">
           <label>Stop reminders and hand to a recruiter after <input type="number" className={num} value={draft.give_up_after_days} onChange={(e) => set((d) => { d.give_up_after_days = +e.target.value; })} /> days</label>
           <label>Quiet hours: no messages or calls from <input type="number" className={num} value={draft.quiet_hours[0]} onChange={(e) => set((d) => { d.quiet_hours[0] = +e.target.value; })} />:00 to <input type="number" className={num} value={draft.quiet_hours[1]} onChange={(e) => set((d) => { d.quiet_hours[1] = +e.target.value; })} />:00</label>
-          <label className="flex items-center gap-1"><input type="checkbox" checked={draft.ai_calls_enabled} onChange={(e) => set((d) => { d.ai_calls_enabled = e.target.checked; })} /> AI follow-up calls (off = text instead)</label>
         </div>
         <div className="space-y-2">
           {p.editable_stages.map((st) => {
             const c = draft.follow_up[st];
-            const { texts, calls } = build(c, draft.give_up_after_days);
+            const { texts } = build(c, draft.give_up_after_days);
             const isOpen = openStage === st;
             const n = (v: number, fn: (d: S, x: number) => void) => (
               <input type="number" min={1} className="mx-1 w-12 rounded border px-1 py-0.5 text-sm" value={v} onChange={(e) => set((d) => { fn(d, +e.target.value); d.follow_up[st].preset = "custom"; })} />
@@ -86,7 +85,7 @@ export default function Settings() {
             <div key={st} className="rounded border px-3 py-2 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="w-36 shrink-0 font-medium text-stone-700">{label(st)}{isOverridden(["follow_up", st]) && <span className="ml-1 text-xs font-normal text-amber-700">• edited</span>}</span>
-                <span className="flex-1 text-xs text-stone-500">{label(c.preset ?? "custom")} · 💬 {texts.size} texts · 📞 {c.calls.enabled ? `${calls.size} AI calls` : "no calls"}</span>
+                <span className="flex-1 text-xs text-stone-500">{label(c.preset ?? "custom")} · 💬 {texts.size} reminder texts{st === "screening" ? " (+ AI follow-up calls)" : ""}</span>
                 {isOverridden(["follow_up", st]) && <button className="text-xs text-stone-400 underline" onClick={() => reset(["follow_up", st])}>reset</button>}
                 <button className="rounded border px-2 py-0.5 text-xs hover:bg-stone-50" onClick={() => setOpenStage(isOpen ? null : st)}>{isOpen ? "Done" : "Edit"}</button>
               </div>
@@ -99,11 +98,8 @@ export default function Settings() {
                   {c.preset === "custom" && <span className="text-stone-400">(custom)</span>}
                 </div>
                 <div>💬 <b>Texts:</b> first on day{n(c.texts.first, (d, x) => { d.follow_up[st].texts.first = x; })}, then every{n(c.texts.every_early, (d, x) => { d.follow_up[st].texts.every_early = x; })}days until day{n(c.texts.early_until, (d, x) => { d.follow_up[st].texts.early_until = x; })}, then every{n(c.texts.every_after, (d, x) => { d.follow_up[st].texts.every_after = x; })}days</div>
-                <div className="flex flex-wrap items-center">📞 <b className="ml-1">AI calls:</b>
-                  <label className="ml-2 mr-2 flex items-center gap-1 text-xs"><input type="checkbox" checked={c.calls.enabled} onChange={(e) => set((d) => { d.follow_up[st].calls.enabled = e.target.checked; d.follow_up[st].preset = "custom"; })} /> on</label>
-                  <span className={c.calls.enabled ? "" : "opacity-40"}>first on day{n(c.calls.first, (d, x) => { d.follow_up[st].calls.first = x; })}, then every{n(c.calls.every, (d, x) => { d.follow_up[st].calls.every = x; })}days</span>
-                </div>
-                <p className="text-xs text-stone-500">{texts.size} texts + {calls.size} AI calls before day {draft.give_up_after_days}. If a text and a call fall on the same day, the call goes out and a text follows only if it isn't answered.</p>
+
+                <p className="text-xs text-stone-500">{texts.size} reminder texts before day {draft.give_up_after_days}.{st === "screening" ? " Screening also gets AI follow-up calls (fixed), since that's a conversation." : ""}</p>
                 <button className="text-xs text-stone-500 underline" onClick={() => set((d) => { for (const o of p.editable_stages) d.follow_up[o] = structuredClone(d.follow_up[st]); })}>Copy this schedule to all stages</button>
               </div>}
             </div>
