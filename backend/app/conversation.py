@@ -6,6 +6,7 @@ and writes the words.
 """
 
 import logging
+from datetime import timedelta
 from typing import Optional
 
 from sqlmodel import Session, select
@@ -284,11 +285,18 @@ def step_facts(s: Session, c: Candidate) -> dict:
     if c.stage == Stage.drug_test:
         dt = s.get(DrugTest, step.id)
         clinic = s.get(Clinic, dt.clinic_id) if dt.clinic_id else None
-        return {"what": "DOT drug test (urine) at a clinic in the vendor's network. Takes about 15 minutes. "
-                        "Bring a government photo ID. Results usually take 2-5 days.",
-                "booking_link": dt.booking_link,
+        from zoneinfo import ZoneInfo
+        from .config import LOCAL_TZ
+        today = now().astimezone(ZoneInfo(LOCAL_TZ))
+        return {"what": "DOT drug test (urine). WALK-IN at any clinic in the vendor's network, no appointment needed. "
+                        "Takes about 15 minutes. Bring a government photo ID and the authorization. Results usually take 2-5 days.",
+                "today": today.strftime("%A %Y-%m-%d"),
+                # Day names -> dates, so "Thursday" / "el sábado" map directly instead of being calculated.
+                "next_7_days": {(today + timedelta(days=i)).strftime("%A"): (today + timedelta(days=i)).strftime("%Y-%m-%d")
+                                for i in range(1, 8)},
+                "authorization_link": dt.booking_link,
                 "nearby_clinics": [f"{cl.name}, {cl.address} ({cl.hours})" for cl in nearby_clinics(s, c)],
-                "appointment": f"{clinic.name}, {fmt_when(dt.appointment_at)}" if dt.appointment_at else None,
+                "planned_visit": f"{fmt_when(dt.appointment_at)}" + (f" at {clinic.name}" if clinic else "") if dt.appointment_at else None,
                 "sample_collected": bool(dt.collected_at)}
     from .config import DMV_PERMIT_LINK
     from .models import Offer, PermitCheck, SkillsTest, Training
@@ -350,6 +358,9 @@ def _handle_stage_turn(s: Session, c: Candidate, body: str, channel: Channel) ->
         create_task(s, c, "candidate_withdrawing", f"Candidate may withdraw: “{turn.candidate_message_en[:100]}”", priority=1)
     elif turn.intent == "claims_done":
         log_event(s, c, "candidate_claims_done", Actor.candidate, stage=c.stage.value)
+    elif turn.intent == "plans_visit" and turn.planned_date and c.stage == Stage.drug_test:
+        from .stages import plan_drug_visit
+        plan_drug_visit(s, c, turn.planned_date, turn.planned_time_of_day, turn.planned_clinic)
     elif turn.intent == "has_permit":
         from .stages import permit_self_reported
         permit_self_reported(s, c)

@@ -163,28 +163,28 @@ TEMPLATES = {
         "es": "Gracias {first_name}. Un reclutador está revisando tus resultados y te contactará en 1 día hábil.",
     },
     "drug_start": {
-        "en": "Next step: a quick DOT drug test at a clinic near you. Sign the authorization and pick a time here: {link}\nNearby clinics:\n{clinics}",
-        "es": "Siguiente paso: una prueba de drogas DOT en una clínica cercana. Firma la autorización y elige un horario aquí: {link}\nClínicas cercanas:\n{clinics}",
+        "en": "Next step: a quick DOT drug test (about 15 min). Here's your authorization: {link}\nWalk in at any of these clinics with a photo ID:\n{clinics}\nWhen are you planning to go?",
+        "es": "Siguiente paso: una prueba de drogas DOT (unos 15 min). Aquí está tu autorización: {link}\nVe sin cita a cualquiera de estas clínicas con identificación con foto:\n{clinics}\n¿Cuándo piensas ir?",
     },
     "drug_reminder": {
-        "en": "Hi {first_name}, your drug test is the next step. Book a time at a clinic near you here: {link}",
-        "es": "Hola {first_name}, tu prueba de drogas es el siguiente paso. Reserva un horario en una clínica cercana aquí: {link}",
+        "en": "Hi {first_name}, your drug test is the next step. Walk in at any nearby clinic with your authorization: {link} When do you think you can go?",
+        "es": "Hola {first_name}, tu prueba de drogas es el siguiente paso. Ve sin cita a una clínica cercana con tu autorización: {link} ¿Cuándo crees que puedes ir?",
     },
     "drug_booked": {
-        "en": "You're booked: {clinic}, {when}. Bring a photo ID. We'll remind you the day before.",
-        "es": "Tienes cita: {clinic}, {when}. Lleva una identificación con foto. Te recordaremos un día antes.",
+        "en": "Got it: {when} at {clinic}. Bring a photo ID and your authorization. We'll remind you the day before.",
+        "es": "Perfecto: {when} en {clinic}. Lleva identificación con foto y tu autorización. Te recordaremos un día antes.",
     },
     "drug_day_before": {
-        "en": "Reminder: your drug test is tomorrow, {when}, at {clinic}. Bring a photo ID. Need a different time? {link}",
-        "es": "Recordatorio: tu prueba de drogas es mañana, {when}, en {clinic}. Lleva identificación con foto. ¿Otro horario? {link}",
+        "en": "Reminder: you're planning to do your drug test tomorrow ({when}) at {clinic}. Bring a photo ID and your authorization: {link}",
+        "es": "Recordatorio: planeas hacer tu prueba de drogas mañana ({when}) en {clinic}. Lleva identificación con foto y tu autorización: {link}",
     },
     "drug_morning_of": {
-        "en": "Today's the day! Drug test at {clinic}, {when}. Bring a photo ID. It only takes about 15 minutes.",
-        "es": "¡Hoy es el día! Prueba de drogas en {clinic}, {when}. Lleva identificación con foto. Solo toma unos 15 minutos.",
+        "en": "Today's the day! Walk in at {clinic} for your drug test. Bring a photo ID and your authorization. It only takes about 15 minutes.",
+        "es": "¡Hoy es el día! Ve a {clinic} para tu prueba de drogas. Lleva identificación con foto y tu autorización. Solo toma unos 15 minutos.",
     },
     "drug_no_show": {
-        "en": "Hi {first_name}, looks like you couldn't make your drug test. No problem! Pick a new time here: {link}",
-        "es": "Hola {first_name}, parece que no pudiste ir a tu prueba de drogas. ¡No hay problema! Elige otro horario aquí: {link}",
+        "en": "Hi {first_name}, looks like you didn't make it in for your drug test. No problem! When would work better for you?",
+        "es": "Hola {first_name}, parece que no pudiste ir a tu prueba de drogas. ¡No hay problema! ¿Cuándo te funcionaría mejor?",
     },
     "drug_collected": {
         "en": "Thanks for going in, {first_name}! Results usually take 2 to 5 days. We'll text you when they're in.",
@@ -315,16 +315,16 @@ TEMPLATES.update({
         "es": "Hola {first_name}, nos encantaría que manejes con Prime Pupil. Tu formulario de antecedentes está listo cuando quieras: {link}",
     },
     "drug_reminder_2": {
-        "en": "Hi {first_name}, we're still waiting on your drug test. It takes about 15 minutes at a clinic near you. Questions? Just reply. {link}",
-        "es": "Hola {first_name}, todavía esperamos tu prueba de drogas. Toma unos 15 minutos en una clínica cercana. ¿Preguntas? Responde. {link}",
+        "en": "Hi {first_name}, we're still waiting on your drug test. It's a walk-in, about 15 minutes at a clinic near you. Questions? Just reply. {link}",
+        "es": "Hola {first_name}, todavía esperamos tu prueba de drogas. Vas sin cita, unos 15 minutos en una clínica cercana. ¿Preguntas? Responde. {link}",
     },
     "drug_reminder_3": {
-        "en": "{first_name}, the drug test is the last step before paid CDL training! Pick a time that works for you: {link}",
-        "es": "¡{first_name}, la prueba de drogas es el último paso antes del entrenamiento CDL pagado! Elige un horario: {link}",
+        "en": "{first_name}, the drug test is the last step before paid CDL training! Which day works for you to walk in? {link}",
+        "es": "¡{first_name}, la prueba de drogas es el último paso antes del entrenamiento CDL pagado! ¿Qué día puedes ir? {link}",
     },
     "drug_reminder_4": {
-        "en": "Hi {first_name}, your spot is still open. Book your drug test whenever you're ready: {link}",
-        "es": "Hola {first_name}, tu lugar sigue abierto. Reserva tu prueba de drogas cuando estés listo: {link}",
+        "en": "Hi {first_name}, your spot is still open. Walk in for your drug test whenever you're ready: {link}",
+        "es": "Hola {first_name}, tu lugar sigue abierto. Ve a hacer tu prueba de drogas cuando estés listo: {link}",
     },
     "permit_reminder_2": {
         "en": "Hi {first_name}, how's the CDL permit going? The DMV knowledge test covers the CDL manual. Reply if you have questions. {link}",

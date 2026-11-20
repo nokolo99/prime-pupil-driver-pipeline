@@ -109,8 +109,9 @@ def _appointments(s: Session, t) -> int:
             continue
         appt = _aware(dt.appointment_at)
         local_t, local_appt = t.astimezone(ZoneInfo(LOCAL_TZ)), appt.astimezone(ZoneInfo(LOCAL_TZ))
-        clinic = s.get(Clinic, dt.clinic_id)
-        args = dict(clinic=clinic.name, when=fmt_when(appt, c.preferred_language), link=dt.booking_link)
+        clinic = s.get(Clinic, dt.clinic_id) if dt.clinic_id else None
+        any_clinic = "una clínica de la red" if c.preferred_language == "es" else "any clinic in the network"
+        args = dict(clinic=clinic.name if clinic else any_clinic, when=fmt_when(appt, c.preferred_language), link=dt.booking_link)
         if t > appt + timedelta(hours=24):  # no collection a day after: treat as missed, offer to rebook
             drug_event(s, dt.vendor_case_id, "no_show")
             actions += 1

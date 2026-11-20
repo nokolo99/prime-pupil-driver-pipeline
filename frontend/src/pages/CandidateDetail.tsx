@@ -66,7 +66,7 @@ export default function CandidateDetail() {
   if (d.background_check) tabs.push(["bg", "Background check", <Rows rows={[["Vendor order", d.background_check.vendor_order_id],
     ["Form submitted", when(d.background_check.form_completed_at) ?? "Not yet"], ["Status", label(d.background_check.report_status ?? "")], ["Findings", d.background_check.flags]]} />]);
   if (d.drug_test) tabs.push(["drug", "Drug test", <Rows rows={[["Vendor case", d.drug_test.vendor_case_id], ["Clinic", d.drug_test.clinic_name],
-    ["Appointment", when(d.drug_test.appointment_at as string) ?? "Not booked"], ["Missed appointments", d.drug_test.no_show_count],
+    ["Plans to walk in", when(d.drug_test.appointment_at as string) ?? "Hasn't said yet"], ["Didn't make it in", d.drug_test.no_show_count],
     ["Sample collected", when(d.drug_test.collected_at as string) ?? "Not yet"], ["Result", d.drug_test.result ? label(String(d.drug_test.result)) : null]]} />]);
   if (p) tabs.push(["permit", "CDL permit", <>
     {p.image_path && <a href={`/api/sim/media/${p.image_path}`} target="_blank" rel="noreferrer"><img src={`/api/sim/media/${p.image_path}`} className="mb-2 max-h-44 w-full rounded-lg border object-contain" /></a>}

@@ -81,8 +81,10 @@ export function eventLabel(e: Event): string {
     case "results_overdue": return `Vendor results overdue (${d.days} days)`;
     case "drug_test_case_opened": return "Drug test authorization sent";
     case "drug_test_booked": return `Clinic appointment booked (${d.clinic})`;
-    case "appointment_reminder": return d.kind === "morning_of" ? "Appointment reminder (morning of)" : "Appointment reminder (day before)";
-    case "drug_test_no_show": return "Missed clinic appointment";
+    case "drug_visit_planned": return `Plans to walk in ${d.day}${d.time_of_day ? ` (${d.time_of_day})` : ""}${d.clinic ? ` at ${d.clinic}` : ""}`;
+    case "drug_auth_signed": return "Signed drug test authorization";
+    case "appointment_reminder": return d.kind === "morning_of" ? "Drug test reminder (morning of)" : "Drug test reminder (day before)";
+    case "drug_test_no_show": return "Didn't make it in for the drug test";
     case "drug_test_collected": return "Drug test sample collected";
     case "drug_test_result": return `Drug test result: ${String(d.result).replace("_", "-")}`;
     case "training_enrolled": return "Enrolled in paid CDL training";

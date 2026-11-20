@@ -180,12 +180,13 @@ export default function Demo() {
               )}
               {stage === "drug_test" && vctx?.drug && (
                 <div className="flex flex-wrap gap-2">
-                  <a className={linkBtn} href={vctx.drug.booking_link} target="_blank" rel="noreferrer">Open booking page ↗</a>
-                  <button className={btn} onClick={() => drug("no_show")}>Missed appointment</button>
+                  <a className={linkBtn} href={vctx.drug.booking_link} target="_blank" rel="noreferrer">Open authorization ↗</a>
+                  <button className={btn} onClick={() => act("/sim/inbound", { phone, body: cand?.preferred_language === "es" ? "Puedo ir mañana por la mañana" : "I can go tomorrow morning" }, "Candidate replied with when they'll walk in.")}>Candidate: "I'll go tomorrow morning"</button>
+                  <button className={btn} onClick={() => drug("no_show")}>Didn't make it in</button>
                   <button className={btn} onClick={() => drug("collected")}>Sample collected</button>
                   <button className={btn} onClick={() => drug("result", "negative")}>Result: negative</button>
                   <button className={btn} onClick={() => drug("result", "non_negative")}>Result: non-negative</button>
-                  <span className="w-full text-xs text-stone-500">{vctx.drug.appointment_at ? "Appointment booked. " : "Not booked yet. "}{vctx.drug.collected ? "Sample collected." : ""}</span>
+                  <span className="w-full text-xs text-stone-500">Walk-in (no appointment). {vctx.drug.appointment_at ? `Plans to go ${new Date(vctx.drug.appointment_at.endsWith("Z") || vctx.drug.appointment_at.includes("+") ? vctx.drug.appointment_at : vctx.drug.appointment_at + "Z").toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric" })}. ` : "Hasn't said when yet. "}{vctx.drug.collected ? "Sample collected." : ""}</span>
                 </div>
               )}
               {stage === "training" && (

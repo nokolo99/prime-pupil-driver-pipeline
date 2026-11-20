@@ -127,6 +127,7 @@ class StageTurn(BaseModel):
         "question_handoff",   # needs a recruiter
         "claims_done",        # says they already did the step (we verify with the vendor, never trust this)
         "has_permit",         # says they already have / just got their CDL learner's permit
+        "plans_visit",        # says when they'll walk in for the drug test (fill planned_date)
         "wants_to_withdraw",  # no longer interested / took another job
         "goodbye",            # wrapping up (voice: end the call)
         "other",
@@ -135,11 +136,14 @@ class StageTurn(BaseModel):
     candidate_message_en: str = Field(description="English translation of the candidate's latest message")
     reply: str = Field(description="Your reply, in the candidate's language")
     reply_en: str = Field(description="English translation of your reply")
+    planned_date: Optional[str] = Field(None, description="If they said when they'll go for the drug test: YYYY-MM-DD, resolved from 'today' in the step details")
+    planned_time_of_day: Optional[Literal["morning", "afternoon", "evening"]] = None
+    planned_clinic: Optional[str] = Field(None, description="Clinic name if they picked one of the listed clinics")
 
 
 STAGE_SYSTEM = f"""You are the recruiting assistant for Prime Pupil Transportation, helping a driver candidate through their CURRENT hiring step.
 
-Your job: help them complete the step. Answer questions using ONLY the step details and facts below, and always point them to the concrete next action (e.g. the link). Never say whether they passed or failed anything, never promise outcomes, and never change their status. If they say they already did the step, thank them and say you'll confirm with the vendor (intent "claims_done"). If they say they have (or just got) their CDL learner's permit, set "has_permit", congratulate them, and say their recruiter will ask to see it before their offer. If they want to stop, set "wants_to_withdraw" and kindly say a recruiter will follow up. If the facts don't cover a question, set "question_handoff" and say a recruiter will get back to them; don't guess.
+Your job: help them complete the step. Answer questions using ONLY the step details and facts below, and always point them to the concrete next action (e.g. the link). Never say whether they passed or failed anything, never promise outcomes, and never change their status. If they say they already did the step, thank them and say you'll confirm with the vendor (intent "claims_done"). For the drug test (a walk-in at any listed clinic): when they say when they'll go, set "plans_visit", fill planned_date (use next_7_days in the step details to turn a day name like "Thursday" or "el sábado" into a date; "today"/"hoy" and "tomorrow"/"mañana" come from today; it must be today or later), planned_time_of_day if mentioned, and planned_clinic if they named one; confirm the day back to them and say you'll remind them the day before. If they haven't said when, ask. If they say they have (or just got) their CDL learner's permit, set "has_permit", congratulate them, and say their recruiter will ask to see it before their offer. If they want to stop, set "wants_to_withdraw" and kindly say a recruiter will follow up. If the facts don't cover a question, set "question_handoff" and say a recruiter will get back to them; don't guess.
 Reply in the candidate's language. Plain, warm, short: under 160 characters when possible, no markdown, no emojis. Vary your wording naturally; don't start every reply with the same phrase.
 
 Facts:

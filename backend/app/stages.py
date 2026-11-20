@@ -130,7 +130,7 @@ def _enter_drug_test(s: Session, c: Candidate, step: Step) -> None:
     s.add(DrugTest(step_id=step.id, vendor_case_id=case["case_id"], booking_link=case["booking_link"], auth_sent_at=now()))
     step.status = StepStatus.waiting_on_candidate
     c.status = CandidateStatus.waiting_on_candidate
-    clinics = "\n".join(f"• {cl.name}, {cl.address} ({cl.hours})" for cl in nearby_clinics(s, c))
+    clinics = "\n".join(f"• {cl.name}, {cl.address}: {cl.hours}" for cl in nearby_clinics(s, c))
     log_event(s, c, "drug_test_case_opened", Actor.system, case_id=case["case_id"])
     body, en = template("drug_start", c.preferred_language, link=case["booking_link"], clinics=clinics)
     send(s, c, body, en, Sender.system)
@@ -142,6 +142,35 @@ def _drug(s: Session, case_id: str) -> tuple[Optional[DrugTest], Optional[Step],
         return None, None, None
     step = s.get(Step, dt.step_id)
     return dt, step, s.get(Candidate, step.candidate_id)
+
+
+TIME_OF_DAY_HOUR = {"morning": 9, "afternoon": 13, "evening": 17}
+
+
+def plan_drug_visit(s: Session, c: Candidate, day: str, time_of_day: Optional[str], clinic_name: Optional[str]) -> bool:
+    """Candidate said when they'll walk in (parsed by Claude). Code validates and saves the plan; the engine then
+    reminds them the day before and that morning, and follows up if no sample is collected by the next day."""
+    step = current_step(s, c)
+    dt = s.get(DrugTest, step.id) if step else None
+    if not dt:
+        return False
+    try:
+        d = date.fromisoformat(day)
+    except ValueError:
+        return False
+    local_today = now().astimezone(ZoneInfo(LOCAL_TZ)).date()
+    if d < local_today:
+        return False
+    when = datetime(d.year, d.month, d.day, TIME_OF_DAY_HOUR.get(time_of_day or "", 10), tzinfo=ZoneInfo(LOCAL_TZ))
+    clinic = None
+    if clinic_name:
+        clinic = next((cl for cl in nearby_clinics(s, c) if clinic_name.lower() in cl.name.lower() or cl.name.lower() in clinic_name.lower()), None)
+    dt.appointment_at = when.astimezone(timezone.utc)
+    dt.clinic_id = clinic.id if clinic else dt.clinic_id
+    dt.reminded_day_before = dt.reminded_morning_of = False
+    step.nudge_count = 0
+    log_event(s, c, "drug_visit_planned", Actor.candidate, day=day, time_of_day=time_of_day, clinic=clinic.name if clinic else None)
+    return True
 
 
 def drug_event(s: Session, case_id: str, event: str, clinic_id: Optional[int] = None,

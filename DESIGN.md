@@ -415,7 +415,8 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Assistant is stage-aware beyond screening (BG + drug test): answers questions using the candidate's current step; code still decides | Candidates need help at the stages where most time is lost |
 | 11-19 | Mock vendor pages the candidate can tap (BG form, drug test authorization + booking) | Interactive demo; mirrors real vendor-hosted pages |
 | 11-19 | BG results arrive as emails parsed by Claude (demo: one-click sample email; prod: inbound-email webhook matched by order ID) | Matches John: results come by email |
-| 11-19 | Drug test: vendor integration reports booked appointment, collection, no-show, result | John: vendor offers an integration; booking assumed (Q17) |
+| 11-19 | (superseded) Drug test booked appointments | — |
+| 11-19 | Drug test is a walk-in (John: "take it to any clinic in their network"): we text the authorization + clinics and ask when they'll go; Claude extracts the day/time (with a 7-day calendar), code saves the plan; reminders day before + morning of; no sample by next day → "when would work better?" | Matches John's process and turns the step into a conversation |
 | 11-19 | Overdue results (5 days) are an FYI flag to the recruiter, not a required action | Visibility without adding work (to revisit) |
 | 11-19 | Permit proof: candidate texts a photo; Claude reads it (name, number, class, expiry) and flags mismatches; recruiter verifies with one click, at upload (before paid training) | Catches problems before Prime Pupil pays for training; how they verify today is an open question (Q18) |
 | 11-19 | Training: weekly cohort (next Monday), Zoom link + session reminders; trainer marks complete | No info on completion tracking; Zoom attendance integration is the production story |

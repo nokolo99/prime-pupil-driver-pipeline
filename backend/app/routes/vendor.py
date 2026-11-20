@@ -127,29 +127,32 @@ def _slots() -> list[datetime]:
 
 @router.get("/vendor/drug/{case_id}", response_class=HTMLResponse)
 def drug_page(case_id: str, s: Session = Depends(get_session)):
+    """Vendor's authorization for a walk-in DOT drug test (John: take it to any clinic in their network)."""
     dt = s.exec(select(DrugTest).where(DrugTest.vendor_case_id == case_id)).first()
     if not dt:
         raise HTTPException(404, "Case not found")
     c = s.get(Candidate, s.get(Step, dt.step_id).candidate_id)
-    clinics = stages.nearby_clinics(s, c)
-    booked = ""
-    if dt.appointment_at:
-        booked = f'<div class="card">Current booking: <b>{html.escape(s.get(Clinic, dt.clinic_id).name)}</b>, {stages.fmt_when(dt.appointment_at)}. Pick again below to reschedule.</div>'
-    clinic_opts = "".join(f'<div class="opt"><input type="radio" name="clinic_id" value="{cl.id}" required id="c{cl.id}"><label for="c{cl.id}"><b>{html.escape(cl.name)}</b><br>{html.escape(cl.address)} · {html.escape(cl.hours)}</label></div>' for cl in clinics)
-    slot_opts = "".join(f'<option value="{t.astimezone(timezone.utc).isoformat()}">{stages.fmt_when(t)}</option>' for t in _slots())
-    return _page("DOT drug test", "ClinicLink", "#0f766e", f"""{booked}
-<div class="card"><h2>DOT drug test for Prime Pupil</h2><p>Case {case_id} · About 15 minutes at the clinic. Bring a photo ID.</p>
-<form method="post"><div class="opt"><input type="checkbox" required id="auth"><label for="auth">I authorize a DOT-regulated drug test and release of results to Prime Pupil.</label></div>
-<label>Choose a clinic</label>{clinic_opts}<label>Choose a time</label><select name="when">{slot_opts}</select>
-<button type="submit">Sign &amp; book</button></form></div>""")
+    clinics = "".join(f'<li><b>{html.escape(cl.name)}</b><br>{html.escape(cl.address)}<br><span class="note">{html.escape(cl.hours)}</span></li>' for cl in stages.nearby_clinics(s, c))
+    signed = dt.auth_signed_at is not None
+    form = ('<p><b>Authorization signed ✓</b> Show this page (or your ID) at the clinic.</p>' if signed else
+            '<form method="post"><div class="opt"><input type="checkbox" required id="auth"><label for="auth">I authorize a DOT-regulated drug test and release of results to Prime Pupil.</label></div><button type="submit">Sign authorization</button></form>')
+    return _page("DOT drug test authorization", "ClinicLink", "#0f766e", f"""
+<div class="card"><h2>DOT drug test authorization</h2><p>For: <b>{html.escape(c.first_name)} {html.escape(c.last_name)}</b> · Employer: Prime Pupil · Case {case_id}</p>
+<p>Walk in at any clinic below. No appointment needed. Bring a photo ID. Takes about 15 minutes.</p>{form}</div>
+<div class="card"><h3>Clinics near you</h3><ul style="padding-left:18px;line-height:1.5">{clinics}</ul></div>""")
 
 
 @router.post("/vendor/drug/{case_id}", response_class=HTMLResponse)
-def drug_book(case_id: str, clinic_id: int = Form(...), when: str = Form(...), s: Session = Depends(get_session)):
-    stages.drug_event(s, case_id, "appointment_booked", clinic_id=clinic_id, appointment_at=datetime.fromisoformat(when))
+def drug_sign(case_id: str, s: Session = Depends(get_session)):
     dt = s.exec(select(DrugTest).where(DrugTest.vendor_case_id == case_id)).first()
-    return _page("Booked", "ClinicLink", "#0f766e",
-                 f'<div class="card"><h2>You\'re booked ✓</h2><p>{html.escape(s.get(Clinic, dt.clinic_id).name)}<br>{stages.fmt_when(dt.appointment_at)}</p><p>Bring a photo ID. You\'ll get a reminder the day before.</p></div>')
+    if dt and not dt.auth_signed_at:
+        dt.auth_signed_at = now()
+        c = s.get(Candidate, s.get(Step, dt.step_id).candidate_id)
+        from ..conversation import log_event
+        from ..models import Actor
+        log_event(s, c, "drug_auth_signed", Actor.candidate)
+        s.commit()
+    return drug_page(case_id, s)
 
 
 class DrugEventIn(BaseModel):
