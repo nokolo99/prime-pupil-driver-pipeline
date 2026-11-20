@@ -9,7 +9,7 @@ const PAGE = 50;
 const sel = "rounded-lg border bg-white px-2 py-1.5 text-sm";
 const STATUS_TITLE: Record<string, string> = { needs_review: "Needs review", waiting_on_candidate: "Waiting on candidate", waiting_on_vendor: "Waiting on vendor",
   stuck: "Stuck candidates", hired: "Hired", lost: "Lost candidates", "": "All candidates" };
-type SortKey = "name" | "depot" | "stage" | "status" | "days" | "contact";
+type SortKey = "name" | "depot" | "stage" | "status" | "days" | "contact" | "heard";
 
 export default function Pipeline() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -27,6 +27,8 @@ export default function Pipeline() {
   const [status, setStatus] = useState(params.get("status") ? "" : "active");
   const [recruiter, setRecruiter] = useState("");
   const [lang, setLang] = useState("");
+  const [applied, setApplied] = useState("");   // applied within N days
+  const [quiet, setQuiet] = useState("");       // "r3" replied within 3 days, or N = no reply in N+ days
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "days", dir: -1 });
   const [page, setPage] = useState(0);
 
@@ -50,15 +52,23 @@ export default function Pipeline() {
       default: return c.status === status;
     }
   };
+  // "Last heard from": days since the candidate's last reply (or since they applied, if they never replied).
+  const quietOk = (c: Candidate) => {
+    if (!quiet) return true;
+    const days = daysSince(c.last_reply_at ?? c.created_at);
+    return quiet === "r3" ? days < 3 : days >= Number(quiet);
+  };
   const inDepot = candidates.filter((c) => (!depot || String(c.depot_id) === depot) && (!recruiter || String(c.recruiter_id) === recruiter)
-    && (!lang || (lang === "other" ? !["en", "es"].includes(c.preferred_language) : c.preferred_language === lang)) && statusOk(c));
+    && (!lang || (lang === "other" ? !["en", "es"].includes(c.preferred_language) : c.preferred_language === lang)) && statusOk(c)
+    && (!applied || daysSince(c.created_at) <= Number(applied))
+    && quietOk(c));
   const ql = q.trim().toLowerCase(), digits = q.replace(/\D/g, "");
   const shown = inDepot
     .filter((c) => !stage || c.stage === stage || (stage === "training" && c.stage === "cdl_permit"))
     .filter((c) => !ql || `${c.first_name} ${c.last_name}`.toLowerCase().includes(ql) || (digits.length >= 3 && c.phone.includes(digits)));
   const val = (c: Candidate): string | number => ({
     name: `${c.first_name} ${c.last_name}`.toLowerCase(), depot: depotName(c.depot_id), stage: PIPELINE_STAGES.indexOf(c.stage),
-    status: c.status, days: daysSince(c.stage_entered_at), contact: c.last_contacted_at ?? "",
+    status: c.status, days: daysSince(c.stage_entered_at), contact: c.last_contacted_at ?? "", heard: c.last_reply_at ?? "",
   })[sort.key];
   const sorted = [...shown].sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * sort.dir; });
   const pages = Math.max(1, Math.ceil(sorted.length / PAGE));
@@ -100,11 +110,18 @@ export default function Pipeline() {
           <option value="">All recruiters</option>
           {lk.recruiters.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
+        <select aria-label="Applied" className={sel} value={applied} onChange={(e) => { setApplied(e.target.value); setPage(0); }}>
+          <option value="">Applied: any time</option><option value="7">Applied: last 7 days</option><option value="30">Applied: last 30 days</option><option value="90">Applied: last 90 days</option>
+        </select>
+        <select aria-label="Last heard from" className={sel} value={quiet} onChange={(e) => { setQuiet(e.target.value); setPage(0); }}>
+          <option value="">Last heard from: any</option><option value="r3">Replied in last 3 days</option>
+          <option value="3">No reply in 3+ days</option><option value="7">No reply in 7+ days</option><option value="14">No reply in 14+ days</option>
+        </select>
         <select aria-label="Language" className={sel} value={lang} onChange={(e) => { setLang(e.target.value); setPage(0); }}>
           <option value="">All languages</option><option value="en">English</option><option value="es">Spanish</option><option value="other">Other</option>
         </select>
-        {(q || status !== "active" || stage || depot || recruiter || lang) &&
-          <button className="text-sm text-stone-500 underline" onClick={() => { setQ(""); setStatus("active"); setRecruiter(""); setLang(""); setParams(new URLSearchParams()); setPage(0); }}>Reset filters</button>}
+        {(q || status !== "active" || stage || depot || recruiter || lang || applied || quiet) &&
+          <button className="text-sm text-stone-500 underline" onClick={() => { setQ(""); setStatus("active"); setRecruiter(""); setLang(""); setApplied(""); setQuiet(""); setParams(new URLSearchParams()); setPage(0); }}>Reset filters</button>}
       </div>
 
       <p className="text-xs font-medium uppercase tracking-wide text-stone-500">{status === "active" ? "Active candidates by current stage" : `${STATUS_TITLE[status] ?? "Candidates"} by current stage`} · click a stage to filter</p>
@@ -127,10 +144,10 @@ export default function Pipeline() {
       <div className="overflow-x-auto rounded-xl border bg-white">
         <table className="w-full text-sm">
           <thead className="border-b text-left text-stone-500"><tr>
-            {th("name", "Name", true)}{th("depot", "Depot")}{th("stage", "Stage")}{th("status", "Status")}{th("days", "Days in stage")}{th("contact", "Last contact")}<th className="pr-3">Lang</th>
+            {th("name", "Name", true)}{th("depot", "Depot")}{th("stage", "Stage")}{th("status", "Status")}{th("days", "Days in stage")}{th("contact", "Last contact")}{th("heard", "Last heard from")}<th className="pr-3">Lang</th>
           </tr></thead>
           <tbody className="divide-y">
-            {rows.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-stone-500">No candidates match.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={8} className="p-6 text-center text-stone-500">No candidates match.</td></tr>}
             {rows.map((c) => {
               const flag = flags.find((f) => f.candidate_id === c.id);
               return (
@@ -141,6 +158,7 @@ export default function Pipeline() {
                   <td className="pr-3"><StatusPill status={c.status} />{flag && <span title={flag.note} className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">FYI</span>}</td>
                   <td className={`pr-3 tabular-nums ${stuck(c) ? "font-semibold text-rose-700" : ""}`}>{daysSince(c.stage_entered_at)}{stuck(c) ? " ⚠" : ""}</td>
                   <td className="pr-3 text-stone-500">{c.last_contacted_at ? timeAgo(c.last_contacted_at) : "—"}</td>
+                  <td className="pr-3 text-stone-500">{c.last_reply_at ? timeAgo(c.last_reply_at) : "Never replied"}</td>
                   <td className="pr-3 uppercase text-stone-500">{c.preferred_language}</td>
                 </tr>
               );

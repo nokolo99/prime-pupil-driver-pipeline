@@ -82,7 +82,11 @@ def seed_demo(s: Session, n: int = 1500, days: int = 150, seed: int = 7) -> dict
             s.add(step)
             s.flush()
             c.stage, c.stage_entered_at = stage, t
+            if stage != Stage.screening or random.random() < 0.85:
+                c.last_reply_at = t + timedelta(hours=random.uniform(0.2, 6))  # they replied as they started this step
             if t + timedelta(days=dur) > t_now:          # still in this stage today
+                if random.random() < 0.45:  # some are engaged mid-stage (questions, booking); others have gone quiet
+                    c.last_reply_at = min(t_now, t + timedelta(days=random.uniform(0, max((t_now - t).days, 0.5))))
                 outcome = "active"
                 _make_current(s, c, step, stage, t, t_now, clinics.get(depot.id, []), ev)
                 break
