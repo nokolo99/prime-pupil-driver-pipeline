@@ -203,8 +203,11 @@ def drug_event(s: Session, case_id: str, event: str, clinic_id: Optional[int] = 
     elif event == "no_show":
         dt.no_show_count += 1
         dt.appointment_at = None
-        step.nudge_count = 0
-        step.started_at = now()  # restart follow-ups from today
+        # The "didn't make it in" message counts as the first reminder, so the next one is a later,
+        # follow-up-style version (not version 1, which reads like starting over).
+        step.nudge_count = 1
+        step.last_nudged_at = now()
+        step.started_at = now()
         log_event(s, c, "drug_test_no_show", Actor.vendor, count=dt.no_show_count)
         body, en = template("drug_no_show", lang, first_name=c.first_name, link=dt.booking_link)
         send(s, c, body, en, Sender.system)
