@@ -100,6 +100,9 @@ app.include_router(insights.router)
 app.include_router(vonage.router)
 app.include_router(mock_workday.router)
 app.include_router(settings_api.router)
+if APP_ENV == "dev":
+    from .routes import spike  # voice lineup spike (laptop only)
+    app.include_router(spike.router)
 
 
 @app.get("/api/health")

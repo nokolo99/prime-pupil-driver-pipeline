@@ -462,6 +462,7 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Career form asks "How should we reach you first? Text me / Give me a call". Call → short heads-up text, then the AI calls within a minute | Some candidates would rather talk than text; the text means the call isn't a surprise |
 | 11-19 | Anyone can ask to be called by text ("can you call me?", "llámame") at any stage; the AI says it's calling and code places the call | Same choice for people who picked text; Claude only spots the request, code makes the call |
 | 11-19 | Call ends before screening is done → text right away: "we got cut off, N questions left, reply here or say 'call me'" | Can't tell a dropped signal from a hang-up, so a text is the safe default; answers are already saved, so text picks up at the next question |
+| 11-19 | Voice: two native voices (English 8DzKSPdg…, Spanish 13VFWfJ7…) instead of one bilingual voice | The bilingual voice drifted between American, British and Mexican accents; each voice now only speaks its own language. Chosen in blind phone tests, matched to sound like coworkers |
 
 ## 18. Polish backlog
 

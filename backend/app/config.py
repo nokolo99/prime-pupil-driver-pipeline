@@ -276,14 +276,13 @@ TEMPLATES = {
 # Streaming calls (Twilio ConversationRelay): ElevenLabs speaks, Deepgram listens.
 # language="multi" lets Deepgram detect English/Spanish automatically.
 RELAY_TTS_PROVIDER = "ElevenLabs"
-# One native voice per language (ElevenLabs v4). Replies are tagged with a language, and Twilio
-# uses the matching voice, so Spanish is spoken by a native Spanish voice, not an English one.
-# One bilingual voice for both languages, so the same "person" speaks even when the caller switches.
-# (Previous per-language defaults: en UgBBYS2sOqTuMpoF3BR0, es uDhfdG2VwEjWZ4JYzggn.)
-BILINGUAL_VOICE = os.getenv("RELAY_VOICE", "9Godp7dNohUvXk6qp0gS-v4")
+# One native voice per language (ElevenLabs v4). Replies are tagged with a language, and Twilio uses the
+# matching voice, so each voice only ever speaks its own language (a single bilingual voice drifted between
+# American, British and Mexican accents). Picked by Nneka in blind phone tests (backend/app/routes/spike.py),
+# chosen to sound like coworkers. (Earlier: bilingual 9Godp7dNohUvXk6qp0gS; en UgBBYS2sOqTuMpoF3BR0, es uDhfdG2VwEjWZ4JYzggn.)
 RELAY_VOICES = {
-    "en": ("en-US", os.getenv("RELAY_VOICE_EN", BILINGUAL_VOICE)),
-    "es": ("es-US", os.getenv("RELAY_VOICE_ES", BILINGUAL_VOICE)),
+    "en": ("en-US", os.getenv("RELAY_VOICE_EN", "8DzKSPdgEQPaK5vKG0Rs-v4")),
+    "es": ("es-US", os.getenv("RELAY_VOICE_ES", "13VFWfJ7e20fmvmaqXWl-v4")),
 }
 RELAY_TRANSCRIPTION_PROVIDER = "Deepgram"
 RELAY_LANGUAGE = "multi"
