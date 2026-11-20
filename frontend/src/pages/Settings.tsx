@@ -1,14 +1,41 @@
 import { useEffect, useState } from "react";
 import { label } from "../api";
 
-type Step = [number, "sms" | "call"];
+type Cadence = { preset?: string; texts: { first: number; every_early: number; early_until: number; every_after: number };
+                 calls: { enabled: boolean; first: number; every: number } };
 type S = {
-  follow_up: Record<string, Step[]>; give_up_after_days: number; quiet_hours: [number, number]; ai_calls_enabled: boolean;
+  follow_up: Record<string, Cadence>; give_up_after_days: number; quiet_hours: [number, number]; ai_calls_enabled: boolean;
   templates: Record<string, Record<string, string>>;
   screening: { min_age: number; min_years_licensed: number; dui_lookback_years: number };
   stage_sla_days: Record<string, number>; results_overdue_days: Record<string, number>;
 };
-type Payload = { current: S; defaults: S; overrides: Partial<S>; template_labels: Record<string, string>; editable_stages: string[]; sla_stages: string[] };
+type Payload = { current: S; defaults: S; overrides: Partial<S>; template_labels: Record<string, string>; editable_stages: string[]; sla_stages: string[];
+                 presets: Record<string, Cadence> };
+
+// Same algorithm as the backend (settings.build_schedule): texts and calls separately; same day -> call.
+function build(c: Cadence, giveUp: number) {
+  const texts = new Set<number>(), calls = new Set<number>();
+  for (let d = c.texts.first; d < giveUp && d > 0;) { texts.add(d); d += d < c.texts.early_until ? Math.max(1, c.texts.every_early) : Math.max(1, c.texts.every_after); }
+  if (c.calls.enabled) for (let d = c.calls.first; d < giveUp && d > 0; d += Math.max(1, c.calls.every)) calls.add(d);
+  for (const d of calls) texts.delete(d);
+  return { texts, calls };
+}
+
+function Track({ c, giveUp }: { c: Cadence; giveUp: number }) {
+  const { texts, calls } = build(c, giveUp);
+  const cell = (on: boolean, color: string, d: number, kind: string) => (
+    <span key={d} title={on ? `Day ${d}: ${kind}` : `Day ${d}`} className={`inline-block h-2.5 w-[1.05%] ${on ? color : "bg-transparent"} rounded-sm`} />
+  );
+  const days = Array.from({ length: giveUp }, (_, i) => i + 1);
+  return (
+    <div className="mt-2 rounded bg-stone-50 p-2 text-[10px] text-stone-500">
+      <div className="flex items-center gap-1"><span className="w-12 shrink-0">💬 texts</span><div className="flex flex-1 gap-[1px]">{days.map((d) => cell(texts.has(d), "bg-[#2a78d6]", d, "text"))}</div></div>
+      <div className="mt-1 flex items-center gap-1"><span className="w-12 shrink-0">📞 calls</span><div className="flex flex-1 gap-[1px]">{days.map((d) => cell(calls.has(d), "bg-[#eb6834]", d, "AI call"))}</div></div>
+      <div className="mt-1 flex justify-between pl-12"><span>day 1</span><span>day {Math.round(giveUp / 2)}</span><span>day {giveUp}: stop, hand to recruiter</span></div>
+      <div className="mt-1 pl-12 text-stone-600">{texts.size} texts + {calls.size} AI calls. If a text and a call fall on the same day, the call goes out and a text follows only if it isn't answered.</div>
+    </div>
+  );
+}
 
 const SAMPLE: Record<string, string> = { first_name: "Maria", link: "https://example.com/abc", clinic: "Troy Occupational Health",
   when: "Tue Nov 24, 9:00 AM", time: "10:00 AM", clinics: "• Troy Occupational Health, 120 Main St\n• Troy Urgent Care, 45 Route 9" };
@@ -31,7 +58,7 @@ export default function Settings() {
   const [errors, setErrors] = useState<string[]>([]);
   const [saved, setSaved] = useState("");
   const [tpl, setTpl] = useState("intro");
-  const [openStage, setOpenStage] = useState<string | null>(null);
+  const [openStage, setOpenStage] = useState<string | null>(() => new URLSearchParams(location.search).get("open"));
   const load = () => call<Payload>("GET", "").then((x) => { setP(x); setDraft(structuredClone(x.current)); });
   useEffect(() => { load(); }, []);
   if (!p || !draft) return <p className="text-stone-500">Loading…</p>;
@@ -61,27 +88,35 @@ export default function Settings() {
         </div>
         <div className="space-y-2">
           {p.editable_stages.map((st) => {
-            const steps = draft.follow_up[st];
-            const calls = steps.filter(([, k]) => k === "call").map(([d]) => d);
+            const c = draft.follow_up[st];
+            const { texts, calls } = build(c, draft.give_up_after_days);
             const isOpen = openStage === st;
+            const n = (v: number, fn: (d: S, x: number) => void) => (
+              <input type="number" min={1} className="mx-1 w-12 rounded border px-1 py-0.5 text-sm" value={v} onChange={(e) => set((d) => { fn(d, +e.target.value); d.follow_up[st].preset = "custom"; })} />
+            );
             return (
             <div key={st} className="rounded border px-3 py-2 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="w-36 shrink-0 font-medium text-stone-700">{label(st)}{isOverridden(["follow_up", st]) && <span className="ml-1 text-xs font-normal text-amber-700">• edited</span>}</span>
-                <span className="flex-1 text-xs text-stone-500">{steps.length} reminders over {steps.length ? steps[steps.length - 1][0] : 0} days · texts on days {steps.filter(([, k]) => k === "sms").slice(0, 4).map(([d]) => d).join(", ")}{steps.filter(([, k]) => k === "sms").length > 4 ? "…" : ""}{calls.length ? ` · AI calls on days ${calls.slice(0, 4).join(", ")}${calls.length > 4 ? "…" : ""}` : ""}</span>
+                <span className="flex-1 text-xs text-stone-500">{label(c.preset ?? "custom")} · 💬 {texts.size} texts · 📞 {c.calls.enabled ? `${calls.size} AI calls` : "no calls"}</span>
                 {isOverridden(["follow_up", st]) && <button className="text-xs text-stone-400 underline" onClick={() => reset(["follow_up", st])}>reset</button>}
                 <button className="rounded border px-2 py-0.5 text-xs hover:bg-stone-50" onClick={() => setOpenStage(isOpen ? null : st)}>{isOpen ? "Done" : "Edit"}</button>
               </div>
-              {isOpen && <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {steps.map(([day, kind], i) => (
-                <span key={i} className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${kind === "call" ? "border-sky-300 bg-sky-50" : "bg-stone-50"}`}>
-                  day <input type="number" className="w-10 rounded border px-0.5" value={day} onChange={(e) => set((d) => { d.follow_up[st][i][0] = +e.target.value; })} />
-                  <select className="rounded border" value={kind} onChange={(e) => set((d) => { d.follow_up[st][i][1] = e.target.value as "sms" | "call"; })}><option value="sms">text</option><option value="call">call</option></select>
-                  <button className="text-stone-400 hover:text-rose-600" title="Remove" onClick={() => set((d) => { d.follow_up[st].splice(i, 1); })}>✕</button>
-                </span>
-              ))}
-              <button className="rounded-full border border-dashed px-2 py-0.5 text-xs text-stone-500 hover:bg-stone-50" onClick={() => set((d) => { const arr = d.follow_up[st]; const last = arr.length ? arr[arr.length - 1][0] : 0; d.follow_up[st].push([last + 3, "sms"]); })}>+ add</button>
-              <button className="ml-2 text-xs text-stone-500 underline" onClick={() => set((d) => { for (const o of p.editable_stages) d.follow_up[o] = structuredClone(d.follow_up[st]); })}>Copy this schedule to all stages</button>
+              {isOpen && <div className="mt-3 space-y-2">
+                <div className="flex items-center gap-2 text-xs"><span className="text-stone-500">Preset:</span>
+                  {Object.keys(p.presets).map((name) => (
+                    <button key={name} onClick={() => set((d) => { d.follow_up[st] = { ...structuredClone(p.presets[name]), preset: name }; })}
+                      className={`rounded-full border px-2 py-0.5 ${c.preset === name ? "border-emerald-700 bg-emerald-50 text-emerald-900" : "hover:bg-stone-50"}`}>{label(name)}</button>
+                  ))}
+                  {c.preset === "custom" && <span className="text-stone-400">(custom)</span>}
+                </div>
+                <div>💬 <b>Texts:</b> first on day{n(c.texts.first, (d, x) => { d.follow_up[st].texts.first = x; })}, then every{n(c.texts.every_early, (d, x) => { d.follow_up[st].texts.every_early = x; })}days until day{n(c.texts.early_until, (d, x) => { d.follow_up[st].texts.early_until = x; })}, then every{n(c.texts.every_after, (d, x) => { d.follow_up[st].texts.every_after = x; })}days</div>
+                <div className="flex flex-wrap items-center">📞 <b className="ml-1">AI calls:</b>
+                  <label className="ml-2 mr-2 flex items-center gap-1 text-xs"><input type="checkbox" checked={c.calls.enabled} onChange={(e) => set((d) => { d.follow_up[st].calls.enabled = e.target.checked; d.follow_up[st].preset = "custom"; })} /> on</label>
+                  <span className={c.calls.enabled ? "" : "opacity-40"}>first on day{n(c.calls.first, (d, x) => { d.follow_up[st].calls.first = x; })}, then every{n(c.calls.every, (d, x) => { d.follow_up[st].calls.every = x; })}days</span>
+                </div>
+                <Track c={c} giveUp={draft.give_up_after_days} />
+                <button className="text-xs text-stone-500 underline" onClick={() => set((d) => { for (const o of p.editable_stages) d.follow_up[o] = structuredClone(d.follow_up[st]); })}>Copy this schedule to all stages</button>
               </div>}
             </div>
             );

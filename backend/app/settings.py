@@ -38,9 +38,37 @@ EDITABLE_TEMPLATES = {
 }
 
 
+# Follow-up cadences: texts and AI calls are configured separately, then combined into exact days.
+PRESETS = {
+    "persistent": {"texts": {"first": 1, "every_early": 1, "early_until": 7, "every_after": 3},
+                   "calls": {"enabled": True, "first": 3, "every": 7}},
+    "standard":   {"texts": {"first": 1, "every_early": 2, "early_until": 7, "every_after": 7},
+                   "calls": {"enabled": True, "first": 5, "every": 14}},
+    "light":      {"texts": {"first": 2, "every_early": 4, "early_until": 14, "every_after": 14},
+                   "calls": {"enabled": False, "first": 10, "every": 30}},
+}
+
+
+def build_schedule(cadence: dict, give_up: int) -> list[tuple[int, str]]:
+    """Turn a cadence into exact days. Same-day rule: if a text and a call land on the same day, the call
+    goes out; if it isn't answered, the voicemail flow sends a text (so nobody gets both)."""
+    t, c = cadence["texts"], cadence["calls"]
+    texts, calls = set(), set()
+    d = int(t["first"])
+    while d < give_up:
+        texts.add(d)
+        d += int(t["every_early"]) if d < int(t["early_until"]) else int(t["every_after"])
+    if c.get("enabled"):
+        d = int(c["first"])
+        while d < give_up:
+            calls.add(d)
+            d += int(c["every"])
+    return [(day, "call" if day in calls else "sms") for day in sorted(texts | calls)]
+
+
 def defaults() -> dict:
     return {
-        "follow_up": {st: [list(x) for x in config.FOLLOW_UP_SCHEDULE.get(st, config.DEFAULT_FOLLOW_UP)] for st in EDITABLE_STAGES},
+        "follow_up": {st: {**PRESETS["standard"], "preset": "standard"} for st in EDITABLE_STAGES},
         "give_up_after_days": config.GIVE_UP_AFTER_DAYS,
         "quiet_hours": list(config.QUIET_HOURS),
         "ai_calls_enabled": True,
@@ -89,8 +117,10 @@ def overrides() -> dict:
 # ---------- Getters used by the rest of the system ----------
 
 def follow_up_schedule(stage: str) -> list[tuple[int, str]]:
-    sched = current()["follow_up"].get(stage) or [list(x) for x in config.DEFAULT_FOLLOW_UP]
-    return [(int(d), k) for d, k in sched]
+    cadence = current()["follow_up"].get(stage)
+    if not cadence:
+        return list(config.DEFAULT_FOLLOW_UP)
+    return build_schedule(cadence, give_up_after_days())
 
 
 def give_up_after_days() -> int:
@@ -168,15 +198,19 @@ def validate(proposed: dict) -> list[str]:
                 errs.append(f"{label}: unknown placeholder " + ", ".join("{" + x + "}" for x in sorted(extra)))
             if "STOP" in d["templates"][key].get(lang, "") and "STOP" not in (text or ""):
                 errs.append(f"{label}: must keep the opt-out instruction (STOP); carriers require it for SMS")
-    for stage, sched in (proposed.get("follow_up") or {}).items():
-        days = [int(x[0]) for x in sched]
-        if days != sorted(days) or len(set(days)) != len(days):
-            errs.append(f"Follow-ups for {stage.replace('_', ' ')}: days must be increasing with no repeats")
-        if any(x[1] not in ("sms", "call") for x in sched):
-            errs.append(f"Follow-ups for {stage.replace('_', ' ')}: each step must be a text or a call")
-        give_up = int(proposed.get("give_up_after_days", current()["give_up_after_days"]))
-        if days and days[-1] >= give_up:
-            errs.append(f"Follow-ups for {stage.replace('_', ' ')}: last reminder must be before day {give_up} (when reminders stop)")
+    give_up = int(proposed.get("give_up_after_days", current()["give_up_after_days"]))
+    for stage, cad in (proposed.get("follow_up") or {}).items():
+        name = stage.replace("_", " ")
+        try:
+            t, c = cad["texts"], cad["calls"]
+            nums = [int(t["first"]), int(t["every_early"]), int(t["early_until"]), int(t["every_after"]), int(c["first"]), int(c["every"])]
+        except (KeyError, TypeError, ValueError):
+            errs.append(f"Follow-ups for {name}: fill in every number")
+            continue
+        if any(n < 1 for n in nums):
+            errs.append(f"Follow-ups for {name}: all days must be 1 or more")
+        if int(t["first"]) >= give_up:
+            errs.append(f"Follow-ups for {name}: first text must be before day {give_up} (when reminders stop)")
     qh = proposed.get("quiet_hours")
     if qh and not all(0 <= int(h) <= 23 for h in qh):
         errs.append("Quiet hours must be between 0 and 23")

@@ -141,6 +141,7 @@ async def amd_result(request: Request, candidate_id: int, reason: str = "follow_
         text, en = template("voicemail", c.preferred_language, first_name=c.first_name)
         _log_spoken(s, c, text, en)
         log_event(s, c, "voicemail_left", Actor.system, reason=reason)
+        _text_after_missed_call(s, c)
         s.commit()
         vr = VoiceResponse()
         vr.pause(length=1)
@@ -151,6 +152,13 @@ async def amd_result(request: Request, candidate_id: int, reason: str = "follow_
         except Exception:
             log.exception("could not switch call to voicemail")
     return Response(status_code=204)
+
+
+def _text_after_missed_call(s: Session, c: Candidate) -> None:
+    """Same-day rule: a call replaces that day's text; if the call isn't answered, send the text."""
+    from ..conversation import send
+    body, en = template("call_fallback", c.preferred_language, first_name=c.first_name)
+    send(s, c, body, en, Sender.system, c.preferred_channel if c.preferred_channel != Channel.voice else Channel.sms)
 
 
 @router.post("/relay-ended")
