@@ -453,6 +453,8 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 
 ## 18. Polish backlog
 
+- WhatsApp sequence: user has additional issues to review (handle near the end).
+
 - Voice/SMS conversation sounds repetitive ("Got it… Got it…"). Vary acknowledgments, sound more natural.
 - UI polish across all screens (increment 10).
 - Dates in Spanish messages still use English format ("Wed Dec 2").
