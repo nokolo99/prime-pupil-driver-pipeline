@@ -30,6 +30,7 @@ export default function App() {
             <span className="px-1 font-semibold uppercase tracking-wide text-amber-800">Demo</span>
             <NavLink to="/apply" className={({ isActive }) => `rounded px-2 py-0.5 ${isActive ? "bg-amber-200 text-amber-950" : "text-amber-900 hover:bg-amber-100"}`}>New applicant</NavLink>
             <NavLink to="/demo" className={({ isActive }) => `rounded px-2 py-0.5 ${isActive ? "bg-amber-200 text-amber-950" : "text-amber-900 hover:bg-amber-100"}`}>Console</NavLink>
+            <NavLink to="/workday" className={({ isActive }) => `rounded px-2 py-0.5 ${isActive ? "bg-amber-200 text-amber-950" : "text-amber-900 hover:bg-amber-100"}`}>Workday</NavLink>
           </nav>
         </div>
       </header>
