@@ -27,9 +27,9 @@ export default function Demo() {
     const r = await api<{ offset_days: number; actions: number }>("/demo/clock/advance", { method: "POST", body: JSON.stringify({ days }) });
     setNote(`Simulated time is now +${r.offset_days} days. The engine took ${r.actions} action(s).`);
   }
-  const [voice, setVoice] = useState<{ ready: boolean } | null>(null);
+  const [voice, setVoice] = useState<{ ready: boolean; workday_intake?: string } | null>(null);
   useEffect(() => {
-    const load = () => { api<{ ready: boolean }>("/demo/voice-status").then(setVoice).catch(() => setVoice({ ready: false })); };
+    const load = () => { api<{ ready: boolean; workday_intake?: string }>("/demo/voice-status").then(setVoice).catch(() => setVoice({ ready: false })); };
     load();
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
@@ -99,12 +99,25 @@ export default function Demo() {
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
 
   async function apply() {
+    if (voice?.workday_intake === "poll") {
+      // Realistic path: the candidate applies in (fake) Workday; our connector polls Get_Candidates and picks them up.
+      try {
+        const res = await fetch("/mock-workday/career-site/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+          first_name: form.first_name, last_name: form.last_name, phone: form.phone, depot_id: form.depot_id,
+          preferred_language: form.language, sms_consent: form.sms_consent, contact_channel: form.channel }) });
+        if (!res.ok) throw new Error(await res.text());
+        const r = await res.json() as { job_application_id: string };
+        setPhone(form.phone);
+        setNote(`Applied in Workday (${r.job_application_id}). Our connector polls Workday every few seconds and will pick it up…`);
+      } catch (e) { setNote(`⚠ ${(e as Error).message}`); }
+      return;
+    }
     const workday_id = `WD-${Math.floor(1000 + Math.random() * 9000)}`;
     let r: { candidate_id: number; phone: string };
     try { r = await api("/integrations/workday/applicant", { method: "POST", body: JSON.stringify({ ...form, workday_id }) }); }
     catch (e) { setNote(`⚠ ${(e as Error).message}`); return; }
     setPhone(r.phone);
-    setNote(`Workday applicant ${workday_id} received → candidate #${r.candidate_id}`);
+    setNote(`Workday applicant ${workday_id} received directly → candidate #${r.candidate_id}`);
   }
 
   async function send() {
@@ -120,7 +133,9 @@ export default function Demo() {
     <div className="grid gap-8 md:grid-cols-2">
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Simulate: new Workday applicant</h2>
-        <p className="text-sm text-stone-500">Stands in for Workday Recruiting sending us a new application from the career page.</p>
+        <p className="text-sm text-stone-500">{voice?.workday_intake === "poll"
+          ? "Mode: poll. This applies in a fake Workday; our connector picks it up with Get_Candidates, like production."
+          : "Mode: direct. This posts the applicant straight into our system (shortcut)."} <span className="text-stone-400">(WORKDAY_INTAKE in .env)</span></p>
         <div className="grid grid-cols-2 gap-2 rounded-lg border bg-white p-3">
           <input className={input} placeholder="First name" value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
           <input className={input} placeholder="Last name" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />

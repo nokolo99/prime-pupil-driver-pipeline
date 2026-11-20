@@ -64,10 +64,10 @@ class CallReq(BaseModel):
 
 @router.get("/voice-status")
 def voice_status():
-    from .. import messaging, telephony
+    from .. import messaging, telephony, workday
     return {"twilio": telephony.twilio_ready(), "public_url": telephony.PUBLIC_URL, "ready": telephony.voice_ready(),
             "providers": {"sms": messaging.provider_for("sms"), "whatsapp": messaging.provider_for("whatsapp")},
-            "vonage_ready": messaging.vonage_ready()}
+            "vonage_ready": messaging.vonage_ready(), "workday_intake": workday.intake_mode()}
 
 
 @router.post("/call")

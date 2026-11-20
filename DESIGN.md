@@ -352,7 +352,7 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | Background-check vendor | Mock API for ordering; results arrive as emails we parse | Vendor API for ordering (confirm availability); inbound email parsing or vendor webhook for results |
 | Drug-test vendor | Mock webhook for results | Vendor's integration (John confirmed one exists) |
 | Skills-test platform | Mock webhook for results (Tier 2) | Platform's integration (John confirmed one exists) |
-| Workday: inbound (new applicants) | Mock Workday "new applicant" event, triggered from demo panel (Tier 1) | Workday Recruiting integration (event/report polling) |
+| Workday: inbound (new applicants) | Flag WORKDAY_INTAKE: `poll` = connector polls a fake Workday's `Get_Candidates` every few seconds (default); `direct` = demo posts straight in | Poll the tenant's `Get_Candidates` with a read-only integration account (no build on Prime Pupil's side); push events as an optional upgrade |
 
 ## 14. Compliance & guardrails
 
@@ -431,6 +431,7 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | BG results via vendor integration; email parsing kept as fallback | John: vendor integration covers results |
 | 11-19 | Training completion: watch the trainer's shared spreadsheet; marking complete moves the candidate on automatically | Trainer's workflow unchanged; removes "recruiters check when they remember" |
 | 11-19 | Screening = John's four automatic fails (21+, licensed 3+ yrs, no DUI in 7 yrs, willing to drug test); failures still go to recruiter review | Match their process; John earlier said a recruiter reviews before any rejection |
+| 11-19 | Workday intake: poll `Get_Candidates` (production approach) with a fake Workday in the demo; direct-post shortcut kept behind a flag | Lowest lift for IT (read-only account, nothing to build on their side) |
 | 11-19 | Messaging providers configurable per channel (SMS_PROVIDER / WHATSAPP_PROVIDER = twilio or vonage); WhatsApp via Vonage Messages API sandbox (Twilio's sandbox unavailable on new accounts); voice stays on Twilio | Swap vendors without touching conversation logic; Vonage sandbox needs no WhatsApp Business account |
 | 11-19 | (superseded) Real-phone texting for the demo via WhatsApp (Twilio sandbox); SMS stays wired for when approval lands; trial account as fallback; voice on our number | Carrier approval may not arrive; John suggested WhatsApp; widely used by Spanish-speaking workers |
 | 11-19 | Voice turns use Claude Haiku 5.5 (SMS stays on Sonnet 5.5); 0.5s merge window for split utterances | Live calls need ~2s replies; code still makes every decision, so the smaller model is safe |

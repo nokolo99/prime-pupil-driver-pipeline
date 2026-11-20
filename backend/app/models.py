@@ -321,3 +321,24 @@ class TrainingSheetRow(SQLModel, table=True):
     completed: bool = False
     marked_at: Optional[datetime] = None
     processed: bool = False   # our watcher has acted on the "completed" mark
+
+
+# ---------- Fake Workday (stand-in for Prime Pupil's Workday tenant) ----------
+
+class MockWorkdayApplication(SQLModel, table=True):
+    """A candidate + job application as they'd exist in Workday Recruiting."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    candidate_id: str = Field(index=True)        # Workday Candidate ID, e.g. CAND-001234
+    job_application_id: str = Field(index=True)  # Workday Job Application ID
+    job_requisition_id: str                       # one open requisition per depot
+    first_name: str
+    last_name: str = ""
+    phone: str
+    email: Optional[str] = None
+    preferred_language: str = "en"               # career-site application question (assumed custom question)
+    sms_consent: bool = True                      # career-site application question (assumed)
+    contact_channel: str = "sms"                  # demo convenience: sms / whatsapp
+    current_step: str = "Review"                  # Workday recruiting step
+    disposition: Optional[str] = None
+    created_at: datetime = Field(default_factory=now)
+    updated_at: datetime = Field(default_factory=now)

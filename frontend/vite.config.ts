@@ -6,6 +6,6 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     // Forward /api calls to the FastAPI backend during development.
-    proxy: { "/api": "http://localhost:8000" },
+    proxy: { "/api": "http://localhost:8000", "/mock-workday": "http://localhost:8000" },
   },
 });
