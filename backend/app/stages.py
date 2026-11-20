@@ -30,9 +30,17 @@ def current_step(s: Session, c: Candidate) -> Step:
                   .order_by(Step.id.desc())).first()
 
 
-def fmt_when(dt: datetime) -> str:
-    dt = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(ZoneInfo(LOCAL_TZ)).strftime("%a %b %-d, %-I:%M %p")
+_ES_DAYS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
+_ES_MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+
+
+def fmt_when(dt: datetime, lang: str = "en") -> str:
+    """Local date/time for messages, in the candidate's language."""
+    dt = (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).astimezone(ZoneInfo(LOCAL_TZ))
+    if lang == "es":
+        ampm = "a. m." if dt.hour < 12 else "p. m."
+        return f"{_ES_DAYS[dt.weekday()]} {dt.day} {_ES_MONTHS[dt.month - 1]}, {dt.hour % 12 or 12}:{dt:%M} {ampm}"
+    return dt.strftime("%a %b %-d, %-I:%M %p")
 
 
 def advance(s: Session, c: Candidate, to: Stage) -> Step:
@@ -151,7 +159,8 @@ def drug_event(s: Session, case_id: str, event: str, clinic_id: Optional[int] = 
         step.nudge_count = 0  # booked: stop generic nudges, appointment reminders take over
         clinic = s.get(Clinic, clinic_id)
         log_event(s, c, "drug_test_booked", Actor.candidate, clinic=clinic.name, at=appointment_at.isoformat())
-        body, en = template("drug_booked", lang, clinic=clinic.name, when=fmt_when(appointment_at))
+        body = template("drug_booked", lang, clinic=clinic.name, when=fmt_when(appointment_at, lang))[0]
+        en = template("drug_booked", "en", clinic=clinic.name, when=fmt_when(appointment_at))[0]
         send(s, c, body, en, Sender.system)
 
     elif event == "collected":
@@ -308,7 +317,8 @@ def _enter_training(s: Session, c: Candidate, step: Step) -> None:
                            cohort=start.astimezone(ZoneInfo(LOCAL_TZ)).strftime("Week of %b %-d")))
     step.status, c.status = StepStatus.in_progress, CandidateStatus.in_progress  # no nudging; session reminders instead
     log_event(s, c, "training_enrolled", Actor.system, cohort_start=start.isoformat())
-    body, en = template("training_start", c.preferred_language, when=fmt_when(start), link=link)
+    body = template("training_start", c.preferred_language, when=fmt_when(start, c.preferred_language), link=link)[0]
+    en = template("training_start", "en", when=fmt_when(start), link=link)[0]
     send(s, c, body, en, Sender.system)
 
 

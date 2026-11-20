@@ -78,7 +78,7 @@ def _training_reminders(s: Session, t) -> int:
             body, en = template("training_morning_of", c.preferred_language, time=ls.strftime("%-I:%M %p"), link=tr.session_link)
             tr.reminded_morning_of = tr.reminded_day_before = True
         elif not tr.reminded_day_before and ls.date() - lt.date() == timedelta(days=1):
-            body, en = template("training_day_before", c.preferred_language, when=fmt_when(start), link=tr.session_link)
+            body, en = template("training_day_before", c.preferred_language, when=fmt_when(start, c.preferred_language), link=tr.session_link)
             tr.reminded_day_before = True
         else:
             continue
@@ -101,7 +101,7 @@ def _appointments(s: Session, t) -> int:
         appt = _aware(dt.appointment_at)
         local_t, local_appt = t.astimezone(ZoneInfo(LOCAL_TZ)), appt.astimezone(ZoneInfo(LOCAL_TZ))
         clinic = s.get(Clinic, dt.clinic_id)
-        args = dict(clinic=clinic.name, when=fmt_when(appt), link=dt.booking_link)
+        args = dict(clinic=clinic.name, when=fmt_when(appt, c.preferred_language), link=dt.booking_link)
         if t > appt + timedelta(hours=24):  # no collection a day after: treat as missed, offer to rebook
             drug_event(s, dt.vendor_case_id, "no_show")
             actions += 1

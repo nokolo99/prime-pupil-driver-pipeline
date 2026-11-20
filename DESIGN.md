@@ -119,7 +119,7 @@ We mapped what we *could* build for each of the 5 stages plus the recruiter side
 | 7 | Stages 4–5 ✅ | 2 | Permit nudges, Zoom link, skills-test webhook, auto offer + e-sign |
 | 8 | Real-time ✅ + VP Insights ✅ (takeover out of scope) | 2 | Dashboard auto-refreshes; recruiter can reply; funnel view |
 | 9 | Deploy + demo data | — | Hosted, seeded with realistic candidates |
-| 10 | UI polish | — | Visual cleanup across all screens (deliberately last) |
+| 10 | UI polish ✅ | — | Visual cleanup across all screens (deliberately last) |
 
 ## 8. Architecture
 
@@ -431,6 +431,7 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | BG results via vendor integration; email parsing kept as fallback | John: vendor integration covers results |
 | 11-19 | Training completion: watch the trainer's shared spreadsheet; marking complete moves the candidate on automatically | Trainer's workflow unchanged; removes "recruiters check when they remember" |
 | 11-19 | Screening = John's four automatic fails (21+, licensed 3+ yrs, no DUI in 7 yrs, willing to drug test); failures still go to recruiter review | Match their process; John earlier said a recruiter reviews before any rejection |
+| 11-19 | UI refresh (option A: consistent, calm): friendly event labels everywhere; Today with per-recruiter queue; Pipeline search/sort/paging (permit not a separate stage); candidate page with header, progress bar + permit side track, tabbed step details, filtered timeline; demo split into career-page New applicant, candidate-centric console, Workday page; Spanish-formatted dates | Clarity for the panel; product vs. demo props clearly separated |
 | 11-19 | Recruiter Settings page: follow-up schedules per stage, give-up day, quiet hours, AI calls on/off; message wording (EN/ES, preview, reset); screening thresholds; stuck/overdue time limits. Overrides on top of defaults; guardrails keep placeholders and SMS opt-out. No roles/history for the demo | Recruiting team controls the system without engineers |
 | 11-19 | Workday writes via a transactional outbox: queued in the same save as the change, delivered after commit, retried on every engine tick | Workday slow/down never blocks a candidate; nothing lost |
 | 11-19 | Workday intake: poll `Get_Candidates` (production approach) with a fake Workday in the demo; direct-post shortcut kept behind a flag | Lowest lift for IT (read-only account, nothing to build on their side) |
@@ -457,9 +458,6 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 - WhatsApp sequence: user has additional issues to review (handle near the end).
 
 - Voice/SMS conversation sounds repetitive ("Got it… Got it…"). Vary acknowledgments, sound more natural.
-- UI polish across all screens (increment 10).
-- Dates in Spanish messages still use English format ("Wed Dec 2").
-- While SMS is unapproved, timelines fill with "SMS undelivered" events; hide or collapse them.
 
 ## 19. What we'd build next
 

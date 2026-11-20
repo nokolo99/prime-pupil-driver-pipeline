@@ -1,2 +1,5 @@
 @import "tailwindcss";
 body { @apply bg-stone-50 text-stone-900; }
+
+/* Shared look (option A: consistent, calm) */
+h2 { @apply tracking-tight; }

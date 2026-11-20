@@ -19,7 +19,10 @@ export default function App() {
       <ClockBanner />
       <header className="border-b bg-white">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-4">
-          <span className="font-semibold">Prime Pupil · Driver Pipeline</span>
+          <NavLink to="/" className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-800 text-sm text-white">PP</span>
+            <span className="leading-tight"><span className="block text-sm font-semibold">Prime Pupil</span><span className="block text-[11px] text-stone-500">Driver hiring</span></span>
+          </NavLink>
           <nav className="flex gap-1">
             <NavLink to="/" end className={link}>Today</NavLink>
             <NavLink to="/pipeline" className={link}>Pipeline</NavLink>

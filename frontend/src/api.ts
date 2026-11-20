@@ -50,3 +50,70 @@ export const STATUS_STYLE: Record<string, string> = {
   rejected: "bg-stone-200 text-stone-600",
   hired: "bg-emerald-100 text-emerald-800",
 };
+
+// ---------- Friendly event labels (timeline, Today log) ----------
+// Plumbing events recruiters don't need to see.
+export const HIDDEN_EVENTS = new Set(["sms_undelivered", "sms_failed", "message_sent", "caller_interrupted", "workday_note", "ai_call_placeholder"]);
+
+const yesNo = (v: unknown) => (v === true ? "yes" : v === false ? "no" : String(v));
+const ANSWER_LABELS: Record<string, string> = { is_21_plus: "21+", years_licensed: "years licensed", dui_past_7_years: "DUI recently", willing_drug_test: "will take drug test" };
+
+export function eventLabel(e: Event): string {
+  const d = e.details ?? {};
+  switch (e.type) {
+    case "applied": return "Applied (arrived from Workday)";
+    case "screening_answer": return "Answer recorded: " + Object.entries((d.answers as Record<string, unknown>) ?? {}).map(([k, v]) => `${ANSWER_LABELS[k] ?? k} ${yesNo(v)}`).join(", ");
+    case "screening_completed": return d.result === "pass" ? "Passed screening" : `Screening flagged: ${((d.flags as string[]) ?? []).join("; ")}`;
+    case "answer_flagged_unclear": return "Unclear answer flagged for recruiter";
+    case "stage_changed": return `Moved to ${label(String(d.to))}`;
+    case "task_created": return `Flagged for recruiter: ${d.reason}`;
+    case "task_dismissed": return "Recruiter dismissed a task";
+    case "nudge_sent": return d.kind === "call" ? `AI follow-up call (day ${d.day})` : `Reminder text sent (day ${d.day})`;
+    case "ai_call_placed": return "AI call placed";
+    case "ai_call_failed": return "AI call couldn't be placed";
+    case "call_answered": return "Answered the AI call";
+    case "call_inbound": return "Called in";
+    case "call_ended": return `Call ended${d.duration_s ? ` (${d.duration_s}s)` : ""}`;
+    case "voicemail_left": return "Voicemail left";
+    case "bg_ordered": return "Background check ordered";
+    case "bg_form_completed": return "Background check form submitted";
+    case "bg_result_received": return `Background check result: ${d.status === "clear" ? "clear" : "needs review"}`;
+    case "results_overdue": return `Vendor results overdue (${d.days} days)`;
+    case "drug_test_case_opened": return "Drug test authorization sent";
+    case "drug_test_booked": return `Clinic appointment booked (${d.clinic})`;
+    case "appointment_reminder": return d.kind === "morning_of" ? "Appointment reminder (morning of)" : "Appointment reminder (day before)";
+    case "drug_test_no_show": return "Missed clinic appointment";
+    case "drug_test_collected": return "Drug test sample collected";
+    case "drug_test_result": return `Drug test result: ${String(d.result).replace("_", "-")}`;
+    case "training_enrolled": return "Enrolled in paid CDL training";
+    case "training_reminder": return "Training reminder";
+    case "training_sheet_completed_detected": return "Training completion picked up from trainer's roster";
+    case "training_completed": return "Training complete";
+    case "permit_track_started": return "CDL permit reminders started";
+    case "permit_self_reported": return "Says they have their CDL permit";
+    case "permit_photo_requested": return "Permit photo requested (before offer)";
+    case "permit_photo_received": return "Permit photo received";
+    case "permit_verified": return "Permit verified by recruiter";
+    case "permit_new_photo_requested": return "New permit photo requested";
+    case "skills_test_result": return `Skills test: ${d.result}${d.score ? ` (${d.score})` : ""}`;
+    case "skills_retest_allowed": return "Retest allowed";
+    case "offer_sent": return "Offer sent";
+    case "offer_signed": return "Offer signed 🎉";
+    case "offer_declined": return "Offer declined";
+    case "recruiter_approved": return "Recruiter approved";
+    case "recruiter_rejected": return `Recruiter rejected (${label(String(d.reason))})`;
+    case "recruiter_marked_dropped": return `Marked dropped (${label(String(d.reason))})`;
+    case "recruiter_extended_follow_up": return "Recruiter restarted follow-ups";
+    case "workday_synced": return `Workday updated: ${d.next_step ?? d.disposition ?? (d.action === "Offer" ? "offer started" : d.action)}`;
+    case "language_changed": return `Switched language to ${d.to === "es" ? "Spanish" : d.to === "en" ? "English" : String(d.to)}`;
+    case "channel_changed": return `Switched to ${d.to === "whatsapp" ? "WhatsApp" : String(d.to)}`;
+    case "opted_out": return "Opted out (STOP)";
+    case "opted_in": return "Opted back in";
+    case "candidate_claims_done": return "Says they finished the step (awaiting vendor confirmation)";
+    case "demo_stage_forced": return `Demo: jumped to ${label(String(d.to))}`;
+    case "ai_error": return "AI had trouble replying (sent a retry message)";
+    default: return label(e.type);
+  }
+}
+
+export const ACTOR_LABEL: Record<string, string> = { system: "System", ai: "AI", recruiter: "Recruiter", candidate: "Candidate", vendor: "Vendor" };
