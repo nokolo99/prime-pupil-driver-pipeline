@@ -155,10 +155,14 @@ async def amd_result(request: Request, candidate_id: int, reason: str = "follow_
 
 
 def _text_after_missed_call(s: Session, c: Candidate) -> None:
-    """Same-day rule: a call replaces that day's text; if the call isn't answered, send the text."""
-    from ..conversation import send
-    body, en = template("call_fallback", c.preferred_language, first_name=c.first_name)
-    send(s, c, body, en, Sender.system, c.preferred_channel if c.preferred_channel != Channel.voice else Channel.sms)
+    """Same-day rule: a call replaces that day's text; if the call isn't answered, send that stage's normal
+    reminder (with its link), so the candidate doesn't have to scroll back to find it."""
+    from ..conversation import send, text_channel
+    from ..engine import _reminder
+    from ..stages import current_step
+    step = current_step(s, c)
+    body, en = _reminder(s, c, step, due_day=5) if step else template("call_fallback", c.preferred_language, first_name=c.first_name)
+    send(s, c, body, en, Sender.system, text_channel(c))
 
 
 @router.post("/relay-ended")

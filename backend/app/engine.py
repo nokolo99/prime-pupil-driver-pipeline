@@ -209,11 +209,11 @@ def tick(s: Session) -> int:
             except Exception as e:
                 log.exception("call failed")
                 log_event(s, c, "ai_call_failed", Actor.system, error=str(e)[:200])
-            body, en = template("call_fallback", c.preferred_language, first_name=c.first_name)
+            body, en = _reminder(s, c, step, due_day)  # couldn't call: send the stage's reminder (with link)
         elif kind == "call":
-            # Voice not configured: log the intended call and text instead.
+            # Voice not configured: log the intended call and send the stage's reminder instead.
             log_event(s, c, "ai_call_placeholder", Actor.system, attempt=n, day=due_day)
-            body, en = template("call_fallback", c.preferred_language, first_name=c.first_name)
+            body, en = _reminder(s, c, step, due_day)
         else:
             body, en = _reminder(s, c, step, due_day)
         send(s, c, body, en, Sender.system)
