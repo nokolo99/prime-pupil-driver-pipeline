@@ -123,7 +123,7 @@ def remaining_questions(sr: ScreeningResult) -> list[dict]:
 
 def intake_applicant(s: Session, *, first_name: str, last_name: str, phone: str, email: Optional[str],
                      depot_id: int, language: str, sms_consent: bool, workday_id: Optional[str],
-                     channel: str = "sms") -> Candidate:
+                     channel: str = "sms", first_contact: str = "text") -> Candidate:
     if language not in ("en", "es"):
         language = "en"  # "Other": start in English; we switch as soon as they reply in their language
     recruiter = s.exec(select(Recruiter).where(Recruiter.depot_id == depot_id)).first() \
@@ -147,15 +147,36 @@ def intake_applicant(s: Session, *, first_name: str, last_name: str, phone: str,
     from . import workday
     workday.push_stage(s, c, "screening")  # Workday: Review -> Screen (we've started screening them)
 
+    from . import telephony
+    wants_call = first_contact == "call" and telephony.voice_ready()
     if not sms_consent:
         create_task(s, c, "no_sms_consent", "Applied without SMS consent: contact by phone or email", priority=2)
+    elif wants_call:
+        # They asked to be called: a short heads-up text (so the call isn't a surprise + a record), then the call.
+        body, en = template("call_heads_up", language, first_name=first_name)
+        send(s, c, body, en, Sender.system)
+        log_event(s, c, "call_requested", Actor.candidate, via="application")
     else:
         body, en = template("intro", language, first_name=first_name)
         send(s, c, body, en, Sender.system)
         log_event(s, c, "message_sent", Actor.system, kind="intro")
     s.commit()
     s.refresh(c)
+    if sms_consent and wants_call:
+        place_requested_call(s, c, "application")
     return c
+
+
+def place_requested_call(s: Session, c: Candidate, reason: str) -> None:
+    """Call the candidate now (they asked). Runs after commit, since Twilio fetches our answer URL right away."""
+    from . import telephony
+    try:
+        sid = telephony.place_call(c.phone, c.id, reason)
+        log_event(s, c, "ai_call_placed", Actor.system, reason=reason, call_sid=sid)
+    except Exception as e:
+        log.warning("requested call failed: %s", e)
+        log_event(s, c, "ai_call_failed", Actor.system, error=str(e)[:200])
+    s.commit()
 
 
 # ---------- Inbound message ----------
@@ -172,6 +193,7 @@ def handle_inbound(s: Session, candidate: Candidate, body: str, channel: Channel
     if candidate.stage in ASSISTED_STAGES and candidate.status != CandidateStatus.needs_review:
         _handle_stage_turn(s, candidate, body, channel)
         s.commit()
+        _maybe_call(s, candidate, channel)
         return
 
     if candidate.stage != Stage.screening or candidate.status == CandidateStatus.needs_review:
@@ -182,6 +204,14 @@ def handle_inbound(s: Session, candidate: Candidate, body: str, channel: Channel
 
     _handle_screening_turn(s, candidate, body, channel)
     s.commit()
+    _maybe_call(s, candidate, channel)
+
+
+def _maybe_call(s: Session, candidate: Candidate, channel: Channel) -> None:
+    """Candidate texted 'can you call me?': place the call right after the reply is saved."""
+    if s.info.pop("call_requested", False) and channel != Channel.voice:
+        log_event(s, candidate, "call_requested", Actor.candidate, via="text")
+        place_requested_call(s, candidate, "requested")
 
 
 def _transcript(s: Session, candidate: Candidate) -> list[tuple[str, str]]:
@@ -234,6 +264,9 @@ def _handle_screening_turn(s: Session, c: Candidate, body: str, channel: Channel
         if counts[turn.unclear_field] > MAX_CLARIFY_ATTEMPTS:
             sr.knockout_flags = list(sr.knockout_flags or []) + [f"Unclear answer: {turn.unclear_field}"]
             log_event(s, c, "answer_flagged_unclear", Actor.system, field=turn.unclear_field)
+
+    if turn.intent == "wants_call":
+        s.info["call_requested"] = True
 
     if turn.intent in ("question_handoff", "wants_human"):
         reason = "Asked to talk to a person" if turn.intent == "wants_human" else f"Question for recruiter: “{turn.candidate_message_en[:100]}”"
@@ -367,6 +400,8 @@ def _handle_stage_turn(s: Session, c: Candidate, body: str, channel: Channel) ->
     elif turn.intent == "plans_visit" and turn.planned_date and c.stage == Stage.drug_test:
         from .stages import plan_drug_visit
         plan_drug_visit(s, c, turn.planned_date, turn.planned_time_of_day, turn.planned_clinic)
+    elif turn.intent == "wants_call":
+        s.info["call_requested"] = True
     elif turn.intent == "has_permit":
         from .stages import permit_self_reported
         permit_self_reported(s, c)

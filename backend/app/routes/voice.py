@@ -165,6 +165,26 @@ def _text_after_missed_call(s: Session, c: Candidate) -> None:
     send(s, c, body, en, Sender.system, text_channel(c))
 
 
+def _text_if_cut_off(s: Session, c: Candidate) -> None:
+    """Call ended mid-screening (dropped signal or hang-up, we can't tell): text right away so they can finish
+    by text from the next unanswered question, or ask us to call back. Answers so far are already saved."""
+    from ..conversation import remaining_questions, screening_step, send, text_channel
+    if c.stage != Stage.screening or c.status in (CandidateStatus.needs_review, CandidateStatus.dropped,
+                                                  CandidateStatus.rejected) or not c.sms_consent_at or c.opted_out:
+        return
+    left = len(remaining_questions(screening_step(s, c)[1]))
+    if not left:
+        return
+    en_n = "1 quick question" if left == 1 else f"{left} quick questions"
+    _, en = template("call_dropped", "en", first_name=c.first_name, left=en_n)
+    body = en
+    if c.preferred_language == "es":
+        body, _ = template("call_dropped", "es", first_name=c.first_name,
+                           left="1 pregunta rápida" if left == 1 else f"{left} preguntas rápidas")
+    send(s, c, body, en, Sender.system, text_channel(c))
+    log_event(s, c, "call_cut_off_texted", Actor.system, questions_left=left)
+
+
 @router.post("/relay-ended")
 async def relay_ended(request: Request, candidate_id: int, s: Session = Depends(get_session)):
     """Twilio calls this when the AI conversation ends: log how it ended and how long it lasted."""
@@ -174,6 +194,7 @@ async def relay_ended(request: Request, candidate_id: int, s: Session = Depends(
         log_event(s, c, "call_ended", Actor.system, call_sid=form.get("CallSid"),
                   status=form.get("SessionStatus"), duration_s=form.get("SessionDuration"),
                   error=form.get("ErrorMessage"))
+        _text_if_cut_off(s, c)
         s.commit()
     vr = VoiceResponse()
     vr.hangup()

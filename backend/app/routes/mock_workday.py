@@ -33,6 +33,7 @@ class Apply(BaseModel):
     preferred_language: str = "en"
     sms_consent: bool = True
     contact_channel: str = "sms"
+    first_contact: str = "text"   # "How should we reach you first?" text / call
 
 
 from ..demo_auth import require_demo  # noqa: E402

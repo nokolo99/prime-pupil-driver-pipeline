@@ -250,6 +250,14 @@ TEMPLATES = {
         "en": "Welcome to Prime Pupil, {first_name}! Your offer is signed. Your recruiter will reach out with your start details and route.",
         "es": "¡Bienvenido a Prime Pupil, {first_name}! Tu oferta está firmada. Tu reclutador te contactará con los detalles de inicio y tu ruta.",
     },
+    "call_heads_up": {
+        "en": "Hi {first_name}! Thanks for applying to drive with Prime Pupil. We'll call you in a moment from this number to ask a few quick questions.",
+        "es": "¡Hola {first_name}! Gracias por postularte para manejar con Prime Pupil. Te llamaremos en un momento desde este número para hacerte unas preguntas rápidas.",
+    },
+    "call_dropped": {
+        "en": "Looks like we got cut off, {first_name}! Just {left} left. Reply here to finish, or say \"call me\" and we'll call you back.",
+        "es": "¡Parece que se cortó la llamada, {first_name}! Solo te queda(n) {left}. Responde aquí para terminar, o di \"llámame\" y te volvemos a llamar.",
+    },
     "voice_link_texted": {
         "en": "I just texted you the link for your next step.",
         "es": "Te acabo de enviar por mensaje el enlace para tu siguiente paso.",

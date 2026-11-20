@@ -307,6 +307,7 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 
 ### Decisions
 - **Entry:** support both. **Primary: career-page form triggers the first text** (fixes slow first response). Secondary: texting DRIVE also creates a candidate (demo-friendly). Production would register the web form as an opt-in method.
+- **First contact:** candidate chooses on the form: text (default) or a call. They can switch anytime by texting "call me". If a call drops mid-screening, a text follows right away so they can finish by text.
 - **Answers:** free text interpreted by the AI; numbered hints where helpful.
 - **Nudge cadence:** day 1, day 2, day 4 → recruiter task on day 5. Appointments: day before + morning of. Quiet hours: no texts before 8am or after 8pm.
 - **Tone:** short (aim ≤160 chars), plain language, warm, one ask per message, always clear on next step.
@@ -458,6 +459,9 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Unclear answers: one clarifying question, then flag for recruiter | Never guess on eligibility |
 | 11-19 | Start on Claude Sonnet 5.5 (model in config); try Opus 5.5 during testing | Cost while iterating; easy switch |
 | 11-19 | New applicants arrive from Workday (mocked "new applicant" event), not our own form | Brief: process runs on Workday; we plug in, not replace |
+| 11-19 | Career form asks "How should we reach you first? Text me / Give me a call". Call → short heads-up text, then the AI calls within a minute | Some candidates would rather talk than text; the text means the call isn't a surprise |
+| 11-19 | Anyone can ask to be called by text ("can you call me?", "llámame") at any stage; the AI says it's calling and code places the call | Same choice for people who picked text; Claude only spots the request, code makes the call |
+| 11-19 | Call ends before screening is done → text right away: "we got cut off, N questions left, reply here or say 'call me'" | Can't tell a dropped signal from a hang-up, so a text is the safe default; answers are already saved, so text picks up at the next question |
 
 ## 18. Polish backlog
 

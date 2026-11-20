@@ -345,6 +345,7 @@ class MockWorkdayApplication(SQLModel, table=True):
     preferred_language: str = "en"               # career-site application question (assumed custom question)
     sms_consent: bool = True                      # career-site application question (assumed)
     contact_channel: str = "sms"                  # demo convenience: sms / whatsapp
+    first_contact: str = "text"                   # career-site question: "How should we reach you first?" text / call
     current_step: str = "Review"                  # Workday recruiting step
     disposition: Optional[str] = None
     created_at: datetime = Field(default_factory=now)

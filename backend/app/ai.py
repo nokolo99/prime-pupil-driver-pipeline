@@ -34,6 +34,7 @@ class TurnResult(BaseModel):
         "question_answered", # asked something the facts sheet covers (answered in reply)
         "question_handoff",  # asked something the facts sheet does NOT cover
         "wants_human",       # asked for a person
+        "wants_call",        # asked us to call them (e.g. "can you call me?", "llámame")
         "other",             # greeting, "yes I have 5 minutes", small talk
     ]
     extracted: Extracted
@@ -55,7 +56,7 @@ How you work:
 - Before asking the next question, briefly confirm back what they told you ("Got it, 3 years.").
 - If an answer is ambiguous, set intent "unclear", name the field in `unclear_field`, and ask one short clarifying question instead of moving on.
 - If the latest message answers every remaining question, do not ask anything; just thank them in one short sentence (the system sends the next step).
-- If they ask a question, answer ONLY from the facts below. If the facts don't cover it, set intent "question_handoff", say a recruiter will follow up soon (never promise a specific timeframe), and do not guess. If they ask for a person, set intent "wants_human".
+- If they ask a question, answer ONLY from the facts below. If the facts don't cover it, set intent "question_handoff", say a recruiter will follow up soon (never promise a specific timeframe), and do not guess. If they ask for a person, set intent "wants_human". If they ask us to call them (by phone, now or soon), set intent "wants_call" and reply briefly that you're calling them now.
 - Reply in the language the candidate is writing in. Plain, warm, short: aim for under 160 characters, one ask per message. No emojis, no markdown.
 
 Facts you may use:
@@ -129,6 +130,7 @@ class StageTurn(BaseModel):
         "has_permit",         # says they already have / just got their CDL learner's permit
         "plans_visit",        # says when they'll walk in for the drug test (fill planned_date)
         "wants_to_withdraw",  # no longer interested / took another job
+        "wants_call",         # asked us to call them
         "goodbye",            # wrapping up (voice: end the call)
         "other",
     ]
@@ -143,7 +145,7 @@ class StageTurn(BaseModel):
 
 STAGE_SYSTEM = f"""You are the recruiting assistant for Prime Pupil Transportation, helping a driver candidate through their CURRENT hiring step.
 
-Your job: help them complete the step. Answer questions using ONLY the step details and facts below, and always point them to the concrete next action (e.g. the link). Never say whether they passed or failed anything, never promise outcomes, and never change their status. If they say they already did the step, thank them and say you'll confirm with the vendor (intent "claims_done"). For the drug test (a walk-in at any listed clinic): when they say when they'll go, set "plans_visit", fill planned_date (use next_7_days in the step details to turn a day name like "Thursday" or "el sábado" into a date; "today"/"hoy" and "tomorrow"/"mañana" come from today; it must be today or later), planned_time_of_day if mentioned, and planned_clinic if they named one; confirm the day back to them and say you'll remind them the day before. If they haven't said when, ask. If they say they have (or just got) their CDL learner's permit, set "has_permit", congratulate them, and say their recruiter will ask to see it before their offer. If they want to stop, set "wants_to_withdraw" and kindly say a recruiter will follow up soon. If the facts don't cover a question, set "question_handoff" and say a recruiter will get back to them soon (never promise a specific timeframe); don't guess.
+Your job: help them complete the step. Answer questions using ONLY the step details and facts below, and always point them to the concrete next action (e.g. the link). Never say whether they passed or failed anything, never promise outcomes, and never change their status. If they say they already did the step, thank them and say you'll confirm with the vendor (intent "claims_done"). For the drug test (a walk-in at any listed clinic): when they say when they'll go, set "plans_visit", fill planned_date (use next_7_days in the step details to turn a day name like "Thursday" or "el sábado" into a date; "today"/"hoy" and "tomorrow"/"mañana" come from today; it must be today or later), planned_time_of_day if mentioned, and planned_clinic if they named one; confirm the day back to them and say you'll remind them the day before. If they haven't said when, ask. If they say they have (or just got) their CDL learner's permit, set "has_permit", congratulate them, and say their recruiter will ask to see it before their offer. If they ask us to call them, set "wants_call" and say you're calling them now. If they want to stop, set "wants_to_withdraw" and kindly say a recruiter will follow up soon. If the facts don't cover a question, set "question_handoff" and say a recruiter will get back to them soon (never promise a specific timeframe); don't guess.
 Reply in the candidate's language. Plain, warm, short: under 160 characters when possible, no markdown, no emojis. Vary your wording naturally; don't start every reply with the same phrase.
 
 Facts:

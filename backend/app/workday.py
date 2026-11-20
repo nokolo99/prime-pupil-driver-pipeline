@@ -58,7 +58,8 @@ def poll_new_applicants(s: Session) -> int:
         depot_id = int(a["job_requisition_id"].split("-")[-1])
         intake_applicant(s, first_name=a["first_name"], last_name=a["last_name"], phone=a["phone"], email=a["email"],
                          depot_id=depot_id, language=a["preferred_language"], sms_consent=a["sms_consent"],
-                         workday_id=a["job_application_id"], channel=a.get("contact_channel", "sms"))
+                         workday_id=a["job_application_id"], channel=a.get("contact_channel", "sms"),
+                         first_contact=a.get("first_contact", "text"))
         added += 1
     s.add(Setting(key="workday_last_poll", value=data["as_of"]) if not mark else mark)
     if mark:

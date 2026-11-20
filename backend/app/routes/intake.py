@@ -27,6 +27,7 @@ class NewApplicant(BaseModel):
     language: str = "en"
     sms_consent: bool = True
     channel: str = "sms"  # sms or whatsapp (how the candidate prefers to be texted)
+    first_contact: str = "text"  # text / call: how they want us to reach out first
 
 
 @router.post("/applicant")

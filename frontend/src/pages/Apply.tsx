@@ -8,7 +8,7 @@ export default function Apply() {
   const nav = useNavigate();
   const [lk, setLk] = useState<Lookups>({ depots: [], recruiters: [] });
   const [mode, setMode] = useState("poll");
-  const [f, setF] = useState({ first_name: "", last_name: "", phone: "", depot_id: 1, language: "en", channel: "whatsapp", sms_consent: true });
+  const [f, setF] = useState({ first_name: "", last_name: "", phone: "", depot_id: 1, language: "en", channel: "whatsapp", first_contact: "text", sms_consent: true });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -23,7 +23,7 @@ export default function Apply() {
       if (mode === "poll") {
         const r = await fetch("/mock-workday/career-site/apply", { method: "POST", headers: { "Content-Type": "application/json", ...demoHeaders() },
           body: JSON.stringify({ first_name: f.first_name, last_name: f.last_name, phone: f.phone, depot_id: f.depot_id,
-            preferred_language: f.language, sms_consent: f.sms_consent, contact_channel: f.channel }) });
+            preferred_language: f.language, sms_consent: f.sms_consent, contact_channel: f.channel, first_contact: f.first_contact }) });
         if (!r.ok) throw new Error((await r.json()).detail ?? "Couldn't submit");
       } else {
         const r = await api<{ phone: string }>("/integrations/workday/applicant", { method: "POST",
@@ -60,6 +60,16 @@ export default function Apply() {
               <option value="whatsapp">WhatsApp</option><option value="sms">SMS (text message)</option>
             </select></label>
         </div>
+        <fieldset className="text-xs text-stone-600">
+          <legend className="mb-1">How should we reach you first?</legend>
+          <div className="grid grid-cols-2 gap-3">
+            {[["text", "Text me"], ["call", "Give me a call"]].map(([v, l]) => (
+              <label key={v} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${f.first_contact === v ? "border-emerald-700 bg-emerald-50 text-emerald-900" : "border-stone-300 text-stone-700"}`}>
+                <input type="radio" name="first_contact" value={v} checked={f.first_contact === v} onChange={() => setF({ ...f, first_contact: v })} />{l}
+              </label>))}
+          </div>
+          {f.first_contact === "call" && <p className="mt-1 text-stone-500">We'll call you within a minute for a few quick questions (about 3 minutes).</p>}
+        </fieldset>
         <label className="flex items-start gap-2 text-xs text-stone-600">
           <input type="checkbox" className="mt-0.5" checked={f.sms_consent} onChange={(e) => setF({ ...f, sms_consent: e.target.checked })} />
           I agree to receive texts and calls about my application. Msg &amp; data rates may apply. Reply STOP to opt out.
