@@ -28,7 +28,7 @@ export type Lookups = { depots: Depot[]; recruiters: Recruiter[] };
 
 export const STAGES = ["application", "screening", "background_check", "drug_test", "cdl_permit", "training", "skills_test", "offer", "hired"];
 
-export const label = (s: string) => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+export const label = (s: string) => s.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()).replace(/\bCdl\b/i, "CDL");
 
 // SQLite returns naive UTC timestamps; treat them as UTC.
 export const asDate = (iso: string) => new Date(iso.endsWith("Z") || iso.includes("+") ? iso : iso + "Z");

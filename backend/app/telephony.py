@@ -15,6 +15,12 @@ PUBLIC_URL: Optional[str] = os.getenv("PUBLIC_URL")
 _client = None
 
 
+def is_fictional(number: str) -> bool:
+    """555-0100..0199 is reserved for fiction in every US area code. Demo data uses it; never dial or text it."""
+    import re
+    return bool(re.fullmatch(r"\+1\d{3}55501\d{2}", number or ""))
+
+
 def twilio_ready() -> bool:
     sid, token = os.getenv("TWILIO_ACCOUNT_SID", ""), os.getenv("TWILIO_AUTH_TOKEN", "")
     return sid.startswith("AC") and len(token) > 10 and "paste" not in token
@@ -61,7 +67,7 @@ def start(port: int = 8000) -> None:
 
 def place_call(to: str, candidate_id: int, reason: str) -> Optional[str]:
     """Start an outbound call. Twilio fetches /voice/answer when it connects. Returns the call SID."""
-    if not voice_ready():
+    if not voice_ready() or is_fictional(to):
         return None
     call = client().calls.create(
         to=to,
@@ -85,7 +91,7 @@ def valid_signature(url: str, params: dict, signature: str) -> bool:
 
 def send_sms(to: str, body: str) -> Optional[str]:
     """Send a text. Returns the message SID. Delivery status arrives later at /sms/status."""
-    if not twilio_ready():
+    if not twilio_ready() or is_fictional(to):
         return None
     kwargs = {"to": to, "from_": os.environ["TWILIO_PHONE_NUMBER"], "body": body}
     if PUBLIC_URL:

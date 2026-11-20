@@ -106,7 +106,7 @@ We mapped what we *could* build for each of the 5 stages plus the recruiter side
 | 5 | Voice | 1 | Phone screening, EN/ES |
 | 6 | Workday mock connector | 2 | Stage changes sync to mock Workday |
 | 7 | Stages 4–5 ✅ | 2 | Permit nudges, Zoom link, skills-test webhook, auto offer + e-sign |
-| 8 | Real-time + takeover + VP metrics | 2 | Dashboard auto-refreshes; recruiter can reply; funnel view |
+| 8 | Real-time ✅ + VP Insights ✅ (takeover out of scope) | 2 | Dashboard auto-refreshes; recruiter can reply; funnel view |
 | 9 | Deploy + demo data | — | Hosted, seeded with realistic candidates |
 | 10 | UI polish | — | Visual cleanup across all screens (deliberately last) |
 
@@ -363,6 +363,10 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | Screening questions + thresholds (21+, 3 yrs licensed, 5-yr violations, split shift) | John hasn't specified; common school bus requirements | Ask in email 2 (Q15) |
 | BG vendor offers an ordering API | Most major vendors do | Ask in email 2 (Q13) |
 | Facts sheet: pay $24/hr, paid training at same rate | Placeholder so the agent can answer pay questions; clearly marked in config | Confirm with Prime Pupil |
+| Strict stage order applies to the CDL permit too (no starting early) | Kept John's rule rather than ask | Assumed |
+| Offers are sent via Workday's offer process; we trigger it automatically (Workday Recruiting `Offer` operation) instead of generating our own letter. Our mock e-sign page stands in for it | Terms, templates and approvals stay in Workday; no new work | Assumed (asking John, Q6) |
+| Keep Workday synced at every stage (decisions + stage changes), even if recruiters only update it at application and hire | Workday stays accurate with zero double entry | Assumed |
+| FCRA adverse-action notices are out of scope | Edge case | Assumed |
 | Depots are in upstate NY | Matches the 518 test number; John said one state | Cosmetic |
 
 ## 17. Decision log
@@ -406,6 +410,8 @@ Rules live in config, not code, so Prime Pupil's team can edit them.
 | 11-19 | Training: weekly cohort (next Monday), Zoom link + session reminders; trainer marks complete | No info on completion tracking; Zoom attendance integration is the production story |
 | 11-19 | Skills test via mock platform webhook; fail → recruiter review (retest or reject) | John: platform offers an integration |
 | 11-19 | Offer auto-generated from template (placeholder terms), mock e-sign; signed → hired, synced to Workday | John: offers can go out automatically |
+| 11-19 | VP Insights tab: funnel, days per stage, hires vs baseline/goal, why/where candidates stopped, by depot, automation share | VP is the decision maker: "speed and volume across all locations" |
+| 11-19 | Demo data: ~900 candidates / 90 days / 12 depots, fictional 555-01XX numbers (never texted or called), labeled illustrative, tuned to modest results | Show scale without fabricating an improvement claim |
 | 11-19 | Voice turns use Claude Haiku 5.5 (SMS stays on Sonnet 5.5); 0.5s merge window for split utterances | Live calls need ~2s replies; code still makes every decision, so the smaller model is safe |
 | 11-19 | Voice both outbound (follow-up calls, "call me now") and inbound | One conversation brain across SMS, voice, and simulator |
 | 11-19 | Unknown inbound callers get a polite close (no DRIVE prompt) | Applications come through Workday |

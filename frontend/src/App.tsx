@@ -3,6 +3,7 @@ import Today from "./pages/Today";
 import Pipeline from "./pages/Pipeline";
 import CandidateDetail from "./pages/CandidateDetail";
 import Demo from "./pages/Demo";
+import Insights from "./pages/Insights";
 import { ClockBanner } from "./components";
 
 const link = ({ isActive }: { isActive: boolean }) =>
@@ -18,6 +19,7 @@ export default function App() {
           <nav className="flex gap-1">
             <NavLink to="/" end className={link}>Today</NavLink>
             <NavLink to="/pipeline" className={link}>Pipeline</NavLink>
+            <NavLink to="/insights" className={link}>Insights</NavLink>
           </nav>
           <NavLink to="/demo" className="ml-auto text-xs text-stone-500 hover:underline">Demo controls</NavLink>
         </div>
@@ -28,6 +30,7 @@ export default function App() {
           <Route path="/pipeline" element={<Pipeline />} />
           <Route path="/candidates/:id" element={<CandidateDetail />} />
           <Route path="/demo" element={<Demo />} />
+          <Route path="/insights" element={<Insights />} />
         </Routes>
       </main>
     </div>

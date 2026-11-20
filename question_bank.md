@@ -27,13 +27,22 @@ S6. Have you tried fixing this before? What didn't work?
 12. At what stage does a candidate first get a Workday record? Could IT provide API access (e.g., an integration system user) for a connector?
 
 
-## Email 2 candidates
-13. Does your background-check vendor offer an API, so the system could order checks automatically instead of a recruiter using the website?
-14. Could we encourage candidates to start studying for / booking their CDL permit earlier (it costs you nothing), so it's ready by the time they finish training?
-15. What do recruiters ask in screening today, and which answers disqualify someone automatically versus needing judgment?
-16. (Optional) Do career-page applications land directly in Workday Recruiting? (Assumed yes, since the brief says the process runs on Workday.)
-17. Drug test: do candidates book a clinic appointment through your vendor, or walk in with the authorization? (Assumed: the vendor integration tells us when an appointment is booked.)
-18. How do you verify the CDL learner's permit today? Who does it, what do they check (name, class, expiration, endorsements), and against what (the physical card, DMV lookup)?
-19. When a background check needs review, who handles the required candidate notices (pre-adverse / adverse action) today? Does the vendor do it?
-20. Do drug test results arrive already verified by a Medical Review Officer, or raw lab results?
-21. If a vendor is slow to return results, who chases them today?
+## Email 2 (working list)
+13. ✅ KEEP. Background-check vendor: does it offer an API, so checks could be ordered automatically instead of through the website?
+14. ❌ CUT. Assume NO: strict order applies to the permit too (logged as assumption).
+15. ✅ KEEP (no assumptions). What questions do recruiters ask in screening, and which answers pass vs. fail (vs. need judgment)?
+16. ❌ CUT (Workday intake).
+17. ✅ KEEP (reworded). Drug test authorization form: what is it (a standard vendor template, generated per candidate, filled in by hand)? Could it be sent automatically when a candidate reaches that step?
+18. ✅ KEEP → part of CDL assumptions list. How the permit is verified today.
+19. ❌ CUT (edge case: FCRA adverse-action notices).
+20. ❌ CUT (MRO).
+21. ❌ CUT (vendor chasing).
+
+## Email 2: user-requested topics
+- CDL/training/skills/offer: list our assumptions about the current workflow and ask John to confirm or correct.
+- SMS: texting number may not be carrier-approved before the demo; how would Prime Pupil like us to handle that?
+
+## Email 2: from review (not yet decided)
+- ✅ KEEP. Training completion: where is attendance/completion tracked today?
+- ✅ KEEP. Offers: do offers come from Workday templates today?
+- ❌ DROPPED. Workday write-back: assume we keep Workday synced at every stage regardless of how often recruiters update it today.

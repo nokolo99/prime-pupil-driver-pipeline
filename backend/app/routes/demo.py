@@ -266,3 +266,30 @@ def send_sample_permit(r: CandidateReq, s: Session = Depends(get_session)):
     s.add(Message(candidate_id=c.id, direction="in", channel=Channel.web, sender="candidate", body="[photo]"))
     permit_photo_received(s, c, png, "image/png")
     return {"ok": True}
+
+
+
+@router.post("/seed")
+def seed(s: Session = Depends(get_session)):
+    """Load ~900 realistic demo candidates (90 days) (replaces any previous demo data)."""
+    clear_seed(s)
+    from ..demo_seed import seed_demo
+    return seed_demo(s)
+
+
+@router.post("/seed/clear")
+def clear_seed(s: Session = Depends(get_session)):
+    from sqlmodel import delete
+    from ..models import (BackgroundCheck, Candidate, DrugTest, Event, Message, Offer, PermitCheck, ScreeningResult,
+                          SkillsTest, Step, Task, Training, WorkdayOutbox)
+    ids = [c.id for c in s.exec(select(Candidate).where(Candidate.source == "demo_seed")).all()]
+    if not ids:
+        return {"cleared": 0}
+    step_ids = [st.id for st in s.exec(select(Step).where(Step.candidate_id.in_(ids))).all()]
+    for model in (ScreeningResult, BackgroundCheck, DrugTest, PermitCheck, Training, SkillsTest, Offer):
+        s.exec(delete(model).where(model.step_id.in_(step_ids)))
+    for model in (Step, Message, Event, Task, WorkdayOutbox):
+        s.exec(delete(model).where(model.candidate_id.in_(ids)))
+    s.exec(delete(Candidate).where(Candidate.id.in_(ids)))
+    s.commit()
+    return {"cleared": len(ids)}
