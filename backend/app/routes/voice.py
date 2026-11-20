@@ -203,8 +203,14 @@ def _process_turn(candidate_id: int, speech: str, lang: str | None) -> tuple[str
         s.refresh(c)
         new_msgs = s.exec(select(Message).where(Message.candidate_id == c.id, Message.id > last_id)
                           .order_by(Message.id)).all()
-        replies = [m for m in new_msgs if m.direction == "out"]
-        text = " ".join(m.body for m in replies) or template("voice_no_input", c.preferred_language)[0]
+        # Speak only what was meant for the call. Anything sent by text this turn (e.g. a link for the
+        # next step) gets a short spoken heads-up instead of being read aloud.
+        replies = [m for m in new_msgs if m.direction == "out" and m.channel == Channel.voice]
+        texted_link = any(m.direction == "out" and m.channel != Channel.voice and "http" in m.body for m in new_msgs)
+        text = " ".join(m.body for m in replies)
+        if texted_link:
+            text = f"{text} {template('voice_link_texted', c.preferred_language)[0]}".strip()
+        text = text or template("voice_no_input", c.preferred_language)[0]
         over = (stage_before == Stage.screening and c.stage != Stage.screening) \
             or c.status == CandidateStatus.needs_review or said_goodbye
         if over:

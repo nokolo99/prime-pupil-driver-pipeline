@@ -250,6 +250,10 @@ TEMPLATES = {
         "en": "Welcome to Prime Pupil, {first_name}! Your offer is signed. Your recruiter will reach out with your start details and route.",
         "es": "¡Bienvenido a Prime Pupil, {first_name}! Tu oferta está firmada. Tu reclutador te contactará con los detalles de inicio y tu ruta.",
     },
+    "voice_link_texted": {
+        "en": "I just texted you the link for your next step.",
+        "es": "Te acabo de enviar por mensaje el enlace para tu siguiente paso.",
+    },
     "voice_greeting_stage": {
         "en": "Hi {first_name}! I'm Prime Pupil's automated recruiting assistant, calling about your next step: {step}. Do you have a minute?",
         "es": "¡Hola {first_name}! Soy el asistente automatizado de reclutamiento de Prime Pupil, llamando por tu siguiente paso: {step}. ¿Tienes un minuto?",

@@ -52,9 +52,24 @@ import re as _re
 _OPT_OUT_LINE = _re.compile(r"\s*(Reply STOP to (opt out|unsubscribe)\.?|Responde STOP para cancelar\.?)", _re.I)
 
 
+_URL = _re.compile(r"https?://\S+")
+
+
+def text_channel(candidate: Candidate) -> Channel:
+    """Where to send texts for this candidate (their preferred texting channel)."""
+    return candidate.preferred_channel if candidate.preferred_channel in (Channel.sms, Channel.whatsapp) else Channel.sms
+
+
 def send(s: Session, candidate: Candidate, body: str, body_en: Optional[str], sender: Sender,
          channel: Optional[Channel] = None) -> Message:
     """Record an outbound message and deliver it on the candidate's channel (voice routes speak it themselves)."""
+    if channel == Channel.voice and _URL.search(body):
+        # Links are useless read aloud: text the message instead, and say on the call that we texted it.
+        send(s, candidate, body, body_en, sender, text_channel(candidate))
+        spoken, spoken_en = template("voice_link_texted", candidate.preferred_language)
+        return send(s, candidate, spoken, spoken_en, Sender.system, Channel.voice)
+    if channel == Channel.voice:
+        body = _URL.sub("", body).strip()  # backstop: never read a link aloud
     if (channel or candidate.preferred_channel) == Channel.whatsapp:
         body = _OPT_OUT_LINE.sub("", body).strip()
         body_en = _OPT_OUT_LINE.sub("", body_en).strip() if body_en else body_en

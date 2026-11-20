@@ -64,7 +64,7 @@ Facts you may use:
 
 VOICE_NOTE = """
 
-This turn is a live phone call: your reply will be spoken aloud. Keep it to one or two short sentences, conversational, no lists or symbols."""
+This turn is a live phone call: your reply will be spoken aloud. Keep it to one or two short sentences, conversational, no lists or symbols. Never read out a link or web address; if they need one, say you'll text it to them."""
 
 
 def _call(model: str, **kw):
