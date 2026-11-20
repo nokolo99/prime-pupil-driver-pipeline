@@ -13,10 +13,13 @@ router = APIRouter(prefix="/api", tags=["recruiter"])
 @router.get("/candidates")
 def list_candidates(depot_id: int | None = None, recruiter_id: int | None = None, language: str | None = None,
                     channel: str | None = None, status: str | None = None, days: int | None = None,
-                    stage: str | None = None, reason: str | None = None, session: Session = Depends(get_session)):
+                    stage: str | None = None, reason: str | None = None, applied_from: str | None = None,
+                    applied_to: str | None = None, hired_from: str | None = None, hired_to: str | None = None,
+                    session: Session = Depends(get_session)):
     """Pipeline list. Same filters as Insights so a chart bar can click through to the exact candidates."""
     from .insights import filtered
-    cands = filtered(session, depot_id, recruiter_id, language, channel, status, days)
+    cands = filtered(session, depot_id, recruiter_id, language, channel, status, days,
+                     applied_from, applied_to, hired_from, hired_to)
     if stage:
         cands = [c for c in cands if c.stage.value == stage]
     if reason:

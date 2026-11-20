@@ -26,10 +26,21 @@ def _aware(dt):
 LOST = (CandidateStatus.dropped, CandidateStatus.rejected)
 
 
-def filtered(s: Session, depot_id=None, recruiter_id=None, language=None, channel=None, status=None, days=None):
-    """Shared filters (Insights + Pipeline click-through). days = applied within the last N days."""
+def _day(iso):
+    from datetime import date, datetime, timezone
+    return datetime.combine(date.fromisoformat(iso), datetime.min.time(), tzinfo=timezone.utc)
+
+
+def filtered(s: Session, depot_id=None, recruiter_id=None, language=None, channel=None, status=None, days=None,
+             applied_from=None, applied_to=None, hired_from=None, hired_to=None):
+    """Shared filters (Insights + Pipeline click-through). days = applied within the last N days.
+    applied_/hired_ from/to are ISO dates (to is exclusive), used by the weekly trend click-through."""
     t = now()
     cands = s.exec(select(Candidate)).all()
+    if applied_from:
+        cands = [c for c in cands if _day(applied_from) <= _aware(c.created_at) < _day(applied_to)]
+    if hired_from:
+        cands = [c for c in cands if c.stage == Stage.hired and _day(hired_from) <= _aware(c.stage_entered_at) < _day(hired_to)]
     if depot_id:
         cands = [c for c in cands if c.depot_id == depot_id]
     if recruiter_id:
@@ -56,8 +67,9 @@ def filtered(s: Session, depot_id=None, recruiter_id=None, language=None, channe
 @router.get("/insights")
 def insights(depot_id: Optional[int] = None, recruiter_id: Optional[int] = None, language: Optional[str] = None,
              channel: Optional[str] = None, status: Optional[str] = None, days: Optional[int] = None,
+             applied_from: Optional[str] = None, applied_to: Optional[str] = None,
              s: Session = Depends(get_session)):
-    cands = filtered(s, depot_id, recruiter_id, language, channel, status, days)
+    cands = filtered(s, depot_id, recruiter_id, language, channel, status, days, applied_from, applied_to)
     ids = {c.id for c in cands}
     steps = [st for st in s.exec(select(Step)).all() if st.candidate_id in ids]
     t = now()
@@ -93,18 +105,32 @@ def insights(depot_id: Optional[int] = None, recruiter_id: Optional[int] = None,
     # By depot.
     depots = {d.id: d for d in s.exec(select(Depot)).all()}
     open_tasks = Counter(tk.candidate_id for tk in s.exec(select(Task).where(Task.status == TaskStatus.open)).all())
-    by_depot = defaultdict(lambda: {"active": 0, "hired_30d": 0, "needs_review": 0, "lost": 0})
+    from ..config import STAGE_SLA_DAYS
+    by_depot = defaultdict(lambda: {"applied": 0, "active": 0, "hired": 0, "hired_30d": 0, "needs_review": 0, "lost": 0, "stuck": 0, "_tth": []})
     for c in cands:
         row = by_depot[c.depot_id]
+        row["applied"] += 1
         if c.status in (CandidateStatus.dropped, CandidateStatus.rejected):
             row["lost"] += 1
         elif c.stage == Stage.hired:
+            row["hired"] += 1
             row["hired_30d"] += int(t - _aware(c.stage_entered_at) <= timedelta(days=30))
+            row["_tth"].append((_aware(c.stage_entered_at) - _aware(c.created_at)).total_seconds() / 86400)
         else:
             row["active"] += 1
+            sla = STAGE_SLA_DAYS.get(c.stage.value)
+            row["stuck"] += int(bool(sla) and (t - _aware(c.stage_entered_at)).days > sla)
         row["needs_review"] += int(open_tasks.get(c.id, 0) > 0)
-    depot_rows = sorted(({"depot": f"{depots[d].name}", "city": depots[d].city, **v} for d, v in by_depot.items() if d in depots),
-                        key=lambda r: -r["active"])
+    depot_rows = []
+    for d, v in by_depot.items():
+        if d not in depots:
+            continue
+        tth = v.pop("_tth")
+        resolved = v["hired"] + v["lost"]
+        depot_rows.append({"depot_id": d, "depot": depots[d].name, "city": depots[d].city, **v,
+                           "conversion": round(v["hired"] / resolved * 100, 1) if resolved else None,
+                           "median_days_to_hire": round(median(tth), 1) if tth else None})
+    depot_rows.sort(key=lambda r: -r["active"])
 
     # Automation: what the system did vs. what needed a person.
     events = [e for e in s.exec(select(Event)).all() if e.candidate_id in ids]
@@ -114,11 +140,13 @@ def insights(depot_id: Optional[int] = None, recruiter_id: Optional[int] = None,
 
     # Weekly trend (last 13 weeks): applications vs hires, same unit so one axis.
     weeks = []
+    tomorrow = _day((t.date() + timedelta(days=1)).isoformat())  # day-aligned so click-through filters match exactly
     for w in range(12, -1, -1):
-        start, end = t - timedelta(days=7 * (w + 1)), t - timedelta(days=7 * w)
+        start, end = tomorrow - timedelta(days=7 * (w + 1)), tomorrow - timedelta(days=7 * w)
         weeks.append({"week_start": start.date().isoformat(),
-                      "applications": sum(1 for c in cands if start < _aware(c.created_at) <= end),
-                      "hires": sum(1 for c in hired if start < _aware(c.stage_entered_at) <= end)})
+                      "week_end": end.date().isoformat(),
+                      "applications": sum(1 for c in cands if start <= _aware(c.created_at) < end),
+                      "hires": sum(1 for c in hired if start <= _aware(c.stage_entered_at) < end)})
 
     # Value 1: speed to first contact (measured: application -> first outbound message).
     first_out = {}
